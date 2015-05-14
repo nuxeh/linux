@@ -317,6 +317,7 @@ static int soc_camera_enum_input(struct file *file, void *priv,
 	/* default is camera */
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
 	inp->std = icd->vdev->tvnorms;
+	inp->capabilities = V4L2_IN_CAP_DV_TIMINGS;
 	strcpy(inp->name, "Camera");
 
 	return 0;
@@ -1172,6 +1173,52 @@ static int soc_camera_s_parm(struct file *file, void *fh,
 		return ici->ops->set_parm(icd, a);
 
 	return -ENOIOCTLCMD;
+}
+
+static int soc_camera_enum_dv_timings(struct file *file, void *priv,
+				struct v4l2_enum_dv_timings *timings)
+{
+	struct soc_camera_device *icd = video_drvdata(file);
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	timings->pad = 0;
+
+	return v4l2_subdev_call(sd, pad, enum_dv_timings, timings);
+}
+
+static int soc_camera_query_dv_timings(struct file *file, void *priv,
+				struct v4l2_dv_timings *timings)
+{
+	struct soc_camera_device *icd = video_drvdata(file);
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	return v4l2_subdev_call(sd, video, query_dv_timings, timings);
+}
+
+static int soc_camera_g_dv_timings(struct file *file, void *priv,
+				struct v4l2_dv_timings *timings)
+{
+	struct soc_camera_device *icd = video_drvdata(file);
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	return v4l2_subdev_call(sd, video, g_dv_timings, timings);
+}
+
+static int soc_camera_s_dv_timings(struct file *file, void *priv,
+				struct v4l2_dv_timings *timings)
+{
+	struct soc_camera_device *icd = video_drvdata(file);
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	int ret;
+
+	if (icd->streamer && icd->streamer != file)
+		return -EBUSY;
+
+	ret = v4l2_subdev_call(sd, video, s_dv_timings, timings);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static int soc_camera_probe(struct soc_camera_host *ici,
@@ -2130,6 +2177,10 @@ static const struct v4l2_ioctl_ops soc_camera_ioctl_ops = {
 	.vidioc_s_selection	 = soc_camera_s_selection,
 	.vidioc_g_parm		 = soc_camera_g_parm,
 	.vidioc_s_parm		 = soc_camera_s_parm,
+	.vidioc_enum_dv_timings  = soc_camera_enum_dv_timings,
+	.vidioc_query_dv_timings = soc_camera_query_dv_timings,
+	.vidioc_g_dv_timings     = soc_camera_g_dv_timings,
+	.vidioc_s_dv_timings     = soc_camera_s_dv_timings,
 };
 
 static int video_dev_create(struct soc_camera_device *icd)

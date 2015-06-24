@@ -51,9 +51,22 @@
 / {
 	interrupt-parent = <&gic>;
 
+	scu@c4300000 {
+		compatible = "arm,cortex-a5-scu";
+		reg = <0xc4300000 0x1000>;
+	};
+
+	cpuconfig@d901ff80 {
+		resets = <&clkc 1>, <&clkc 2>, <&clkc 3>;
+		reset-names = "CPU1", "CPU2", "CPU3";
+		compatible = "amlogic,meson8b-cpuconfig";
+		reg = <0xd901ff80 0x8>;
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
+		enable-method = "amlogic,meson8b-smp";
 
 		cpu@200 {
 			device_type = "cpu";

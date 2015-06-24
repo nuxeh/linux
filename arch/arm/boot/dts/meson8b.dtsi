@@ -158,6 +158,7 @@
 		};
 
 		clkc: clock-controller@c1104000 {
+			#reset-cells = <1>;
 			#clock-cells = <1>;
 			compatible = "amlogic,meson8b-clkc";
 			reg = <0xc1108000 0x4>, <0xc1104000 0x460>;

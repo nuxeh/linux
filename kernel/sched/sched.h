@@ -1186,6 +1186,7 @@ extern const u32 sched_prio_to_wmult[40];
 #define DEQUEUE_MOVE		0x04 /* matches ENQUEUE_MOVE */
 
 #define ENQUEUE_WAKEUP		0x01
+#define ENQUEUE_WAKEUP_NEW	0x30
 #define ENQUEUE_RESTORE		0x02
 #define ENQUEUE_MOVE		0x04
 

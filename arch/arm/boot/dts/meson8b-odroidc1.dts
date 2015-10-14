@@ -86,3 +86,9 @@
 	pinctrl-0 = <&uart_ao_a_pins>;
 	pinctrl-names = "default";
 };
+
+&ethmac {
+	status = "okay";
+	pinctrl-0 = <&eth_pins>;
+	pnictrl-names = "default";
+};

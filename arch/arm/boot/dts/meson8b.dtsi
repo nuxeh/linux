@@ -47,6 +47,7 @@
 #include <dt-bindings/clock/meson8b-clkc.h>
 #include <dt-bindings/gpio/meson8b-gpio.h>
 #include "skeleton.dtsi"
+/include/ "meson.dtsi"
 
 / {
 	interrupt-parent = <&gic>;
@@ -193,6 +194,17 @@
 					groups = "sd_d1_b", "sd_d0_b", "sd_clk_b", "sd_cmd_b",
 						 "sd_d3_b", "sd_d2_b";
 					function = "sd_b";
+				};
+			};
+
+			eth_pins: ethernet {
+				mux {
+					groups = "eth_tx_clk_50m", "eth_tx_en",
+						 "eth_txd1", "eth_txd0",
+						 "eth_rx_clk_in", "eth_rx_dv",
+						 "eth_rxd1", "eth_rxd0", "eth_mdio",
+						 "eth_mdc";
+					function = "ethernet";
 				};
 			};
 		};

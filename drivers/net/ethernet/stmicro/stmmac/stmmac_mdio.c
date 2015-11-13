@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/of_mdio.h>
 
 #include <asm/io.h>
 
@@ -233,64 +234,73 @@ int stmmac_mdio_register(struct net_device *ndev)
 	new_bus->irq = irqlist;
 	new_bus->phy_mask = mdio_bus_data->phy_mask;
 	new_bus->parent = priv->device;
-	err = mdiobus_register(new_bus);
-	if (err != 0) {
-		pr_err("%s: Cannot register as MDIO bus\n", new_bus->name);
-		goto bus_register_fail;
-	}
 
-	found = 0;
-	for (addr = 0; addr < PHY_MAX_ADDR; addr++) {
-		struct phy_device *phydev = new_bus->phy_map[addr];
-		if (phydev) {
-			int act = 0;
-			char irq_num[4];
-			char *irq_str;
-
-			/*
-			 * If an IRQ was provided to be assigned after
-			 * the bus probe, do it here.
-			 */
-			if ((mdio_bus_data->irqs == NULL) &&
-			    (mdio_bus_data->probed_phy_irq > 0)) {
-				irqlist[addr] = mdio_bus_data->probed_phy_irq;
-				phydev->irq = mdio_bus_data->probed_phy_irq;
-			}
-
-			/*
-			 * If we're going to bind the MAC to this PHY bus,
-			 * and no PHY number was provided to the MAC,
-			 * use the one probed here.
-			 */
-			if (priv->plat->phy_addr == -1)
-				priv->plat->phy_addr = addr;
-
-			act = (priv->plat->phy_addr == addr);
-			switch (phydev->irq) {
-			case PHY_POLL:
-				irq_str = "POLL";
-				break;
-			case PHY_IGNORE_INTERRUPT:
-				irq_str = "IGNORE";
-				break;
-			default:
-				sprintf(irq_num, "%d", phydev->irq);
-				irq_str = irq_num;
-				break;
-			}
-			pr_info("%s: PHY ID %08x at %d IRQ %s (%s)%s\n",
-				ndev->name, phydev->phy_id, addr,
-				irq_str, dev_name(&phydev->dev),
-				act ? " active" : "");
-			found = 1;
+	if (priv->device->of_node) {
+		err = of_mdiobus_register(new_bus, priv->device->of_node);
+		if (err) {
+			dev_err(priv->device, "of_mdiobus_register() failed\n");
+			goto bus_register_fail;
 		}
-	}
+	} else {
+		err = mdiobus_register(new_bus);
+		if (err != 0) {
+			pr_err("%s: Cannot register as MDIO bus\n", new_bus->name);
+			goto bus_register_fail;
+		}
 
-	if (!found) {
-		pr_warn("%s: No PHY found\n", ndev->name);
-		mdiobus_unregister(new_bus);
-		mdiobus_free(new_bus);
-		return -ENODEV;
+		found = 0;
+		for (addr = 0; addr < PHY_MAX_ADDR; addr++) {
+			struct phy_device *phydev = new_bus->phy_map[addr];
+			if (phydev) {
+				int act = 0;
+				char irq_num[4];
+				char *irq_str;
+
+				/*
+				 * If an IRQ was provided to be assigned after
+				 * the bus probe, do it here.
+				 */
+				if ((mdio_bus_data->irqs == NULL) &&
+				    (mdio_bus_data->probed_phy_irq > 0)) {
+					irqlist[addr] = mdio_bus_data->probed_phy_irq;
+					phydev->irq = mdio_bus_data->probed_phy_irq;
+				}
+
+				/*
+				 * If we're going to bind the MAC to this PHY bus,
+				 * and no PHY number was provided to the MAC,
+				 * use the one probed here.
+				 */
+				if (priv->plat->phy_addr == -1)
+					priv->plat->phy_addr = addr;
+
+				act = (priv->plat->phy_addr == addr);
+				switch (phydev->irq) {
+				case PHY_POLL:
+					irq_str = "POLL";
+					break;
+				case PHY_IGNORE_INTERRUPT:
+					irq_str = "IGNORE";
+					break;
+				default:
+					sprintf(irq_num, "%d", phydev->irq);
+					irq_str = irq_num;
+					break;
+				}
+				pr_info("%s: PHY ID %08x at %d IRQ %s (%s)%s\n",
+					ndev->name, phydev->phy_id, addr,
+					irq_str, dev_name(&phydev->dev),
+					act ? " active" : "");
+				found = 1;
+			}
+		}
+
+		if (!found) {
+			pr_warn("%s: No PHY found\n", ndev->name);
+			mdiobus_unregister(new_bus);
+			mdiobus_free(new_bus);
+			return -ENODEV;
+		}
 	}
 
 	priv->mii = new_bus;

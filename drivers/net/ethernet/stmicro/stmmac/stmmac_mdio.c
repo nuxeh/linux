@@ -76,16 +76,21 @@ static int stmmac_mdio_read(struct mii_bus *bus, int phyaddr, int phyreg)
 			((phyreg << 6) & (0x000007C0)));
 	regValue |= MII_BUSY | ((priv->clk_csr & 0xF) << 2);
 
-	if (stmmac_mdio_busy_wait(priv->ioaddr, mii_address))
+	if (stmmac_mdio_busy_wait(priv->ioaddr, mii_address)) {
+		pr_info("%s: mdio busy...\n", __func__);
 		return -EBUSY;
+	}
 
 	writel(regValue, priv->ioaddr + mii_address);
 
-	if (stmmac_mdio_busy_wait(priv->ioaddr, mii_address))
+	if (stmmac_mdio_busy_wait(priv->ioaddr, mii_address)) {
+		pr_info("%s: mdio failed to wait\n", __func__);
 		return -EBUSY;
+	}
 
 	/* Read the data from the MII data register */
 	data = (int)readl(priv->ioaddr + mii_data);
+	pr_info("%s: read %08x\n", __func__, data);
 
 	return data;
 }

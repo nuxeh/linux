@@ -92,7 +92,7 @@
 	pinctrl-0 = <&eth_pins>;
 	pnictrl-names = "default";
 
-	phy = <&phy0>;
+	phy-handle = <&phy0>;
 	phy-mode = "rgmii";
 
 	snps,reset-active-low;

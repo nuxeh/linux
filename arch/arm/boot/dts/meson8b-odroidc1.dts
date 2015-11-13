@@ -91,4 +91,19 @@
 	status = "okay";
 	pinctrl-0 = <&eth_pins>;
 	pnictrl-names = "default";
+
+	phy = <&phy0>;
+	phy-mode = "rgmii";
+
+	snps,reset-active-low;
+	snps,reset-gpio = <&gpio GPIOH_4 GPIO_ACTIVE_LOW>;
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		phy0: ethernet-phy@0 {
+			reg = <0>;
+			/* interrupt is on GPIOH3 */
+		};
+	};
 };

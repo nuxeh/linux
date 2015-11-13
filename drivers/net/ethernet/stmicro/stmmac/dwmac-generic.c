@@ -20,7 +20,15 @@ static int dwmac_generic_probe(struct platform_device *pdev)
 {
 	struct plat_stmmacenet_data *plat_dat;
 	struct stmmac_resources stmmac_res;
+	struct clk *clk;
 	int ret;
+
+	clk = clk_get(&pdev->dev, NULL);
+	if (!IS_ERR(clk)) {
+		dev_info(&pdev->dev, "enabling clock...\n");
+		clk_prepare_enable(clk);
+	} else
+		dev_err(&pdev->dev, "no clock found\n");
 
 	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
 	if (ret)
@@ -57,6 +65,7 @@ static int dwmac_generic_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id dwmac_generic_match[] = {
+	{ .compatible = "amlogic,meson8b-dwmac" },
 	{ .compatible = "st,spear600-gmac"},
 	{ .compatible = "snps,dwmac-3.610"},
 	{ .compatible = "snps,dwmac-3.70a"},

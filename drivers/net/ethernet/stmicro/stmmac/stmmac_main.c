@@ -188,6 +188,8 @@ static void stmmac_clk_csr_set(struct stmmac_priv *priv)
 		else if ((clk_rate >= CSR_F_250M) && (clk_rate < CSR_F_300M))
 			priv->clk_csr = STMMAC_CSR_250_300M;
 	}
+
+	pr_info("%s: clk_csr=%d\n", __func__, priv->clk_csr);
 }
 
 static void print_pkt(unsigned char *buf, int len)

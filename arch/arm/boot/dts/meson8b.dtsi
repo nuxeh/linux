@@ -155,6 +155,8 @@
 			clocks = <&clkc CLKID_CLK81>;
 			clock-names = "stmmaceth";
 			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
 		};
 
 		clkc: clock-controller@c1104000 {

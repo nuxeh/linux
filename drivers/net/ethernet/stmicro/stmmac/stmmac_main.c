@@ -166,6 +166,8 @@ static void stmmac_clk_csr_set(struct stmmac_priv *priv)
 	u32 clk_rate;
 
 	clk_rate = clk_get_rate(priv->stmmac_clk);
+	pr_info("%s: rate %ld\n", __func__, clk_rate);
+	clk_rate = 125*1000*1000;
 
 	/* Platform provided default clk_csr would be assumed valid
 	 * for all other cases except for the below mentioned ones.

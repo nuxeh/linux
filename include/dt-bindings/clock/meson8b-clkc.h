@@ -19,7 +19,8 @@
 #define CLKID_MALI		11
 #define CLKID_CPUCLK		12
 #define CLKID_ZERO		13
+#define CLKID_ETH		14
 
-#define CLK_NR_CLKS		(CLKID_ZERO + 1)
+#define CLK_NR_CLKS		(CLKID_ETH + 1)
 
 #endif /* __MESON8B_CLKC_H */

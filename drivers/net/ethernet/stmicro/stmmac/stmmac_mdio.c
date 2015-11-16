@@ -90,8 +90,6 @@ static int stmmac_mdio_read(struct mii_bus *bus, int phyaddr, int phyreg)
 
 	/* Read the data from the MII data register */
 	data = (int)readl(priv->ioaddr + mii_data);
-	pr_info("%s: read %08x\n", __func__, data);
-
 	return data;
 }
 

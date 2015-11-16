@@ -191,6 +191,7 @@ int stmmac_mdio_reset(struct mii_bus *bus)
 	 * on MDC, so perform a dummy mdio read.
 	 */
 	writel((priv->clk_csr << 2) | MII_BUSY, priv->ioaddr + mii_address);
+	msleep(50);
 #endif
 	return 0;
 }

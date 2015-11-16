@@ -190,7 +190,7 @@ int stmmac_mdio_reset(struct mii_bus *bus)
 	 * It doesn't complete its reset until at least one clock cycle
 	 * on MDC, so perform a dummy mdio read.
 	 */
-	writel(priv->clk_csr << 2, priv->ioaddr + mii_address);
+	writel((priv->clk_csr << 2) | MII_BUSY, priv->ioaddr + mii_address);
 #endif
 	return 0;
 }

@@ -30,13 +30,37 @@ static int dwmac_generic_probe(struct platform_device *pdev)
 	} else
 		dev_err(&pdev->dev, "no clock found\n");
 
-	if (1){
+	if (1) {
 		void __iomem *reg = ioremap(0xC0004144, 4);
 
 		BUG_ON(!reg);
 		writel(readl(reg) | (1<<3), reg);
+		iounmap(reg);
+		mdelay(100);
 	}
-	
+
+	if (0) {
+		void __iomem *reg = ioremap(0xC0004408, 4);
+
+		BUG_ON(!reg);
+		pr_info("checking resetn\n");
+		pr_info("%s: reg %p was %08x\n", __func__, reg, readl(reg));
+		writel(readl(reg) | (1<<11), reg);
+		pr_info("%s: reg %p now %08x\n", __func__, reg, readl(reg));	
+		iounmap(reg);
+	}
+
+	if (1) {
+		void __iomem *reg = ioremap(0xC0004100, 4);
+
+		BUG_ON(!reg);
+		pr_info("checking MEM_PD_REG0\n");
+		pr_info("%s: reg %p was %08x\n", __func__, reg, readl(reg));
+		writel(readl(reg) & ~(3 << 2), reg);
+		pr_info("%s: reg %p now %08x\n", __func__, reg, readl(reg));	
+		iounmap(reg);
+	}		
+
 	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
 	if (ret)
 		return ret;

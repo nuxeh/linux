@@ -51,7 +51,6 @@ static int stmmac_mdio_busy_wait(void __iomem *ioaddr, unsigned int mii_addr)
 			return 0;
 	} while (!time_after_eq(curr, finish));
 
-	pr_info("%s: busy %08x\n", __func__, readl(ioaddr + mii_addr));
 	return -EBUSY;
 }
 
@@ -76,10 +75,6 @@ static int stmmac_mdio_read(struct mii_bus *bus, int phyaddr, int phyreg)
 	u16 regValue = (((phyaddr << 11) & (0x0000F800)) |
 			((phyreg << 6) & (0x000007C0)));
 	regValue |= MII_BUSY | ((priv->clk_csr & 0xF) << 2);
-
-	pr_info("%s: regis %04x,%04x (value %08x, was %08x)\n",
-		__func__, mii_address, mii_data, regValue,
-		readl(priv->ioaddr + mii_address));
 	
 	if (stmmac_mdio_busy_wait(priv->ioaddr, mii_address)) {
 		pr_info("%s: mdio busy...\n", __func__);

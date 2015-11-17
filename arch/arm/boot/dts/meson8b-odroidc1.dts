@@ -103,3 +103,7 @@
 		/* interrupt is on GPIOH3 */
 	};
 };
+
+&rtc {
+	status = "okay";
+};

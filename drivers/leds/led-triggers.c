@@ -310,6 +310,9 @@ void led_trigger_register_simple(const char *name, struct led_trigger **tp)
 	struct led_trigger *trig;
 	int err;
 
+	if (WARN_ON(!name))
+		return;
+
 	trig = kzalloc(sizeof(struct led_trigger), GFP_KERNEL);
 
 	if (trig) {

@@ -642,6 +642,7 @@ static void sh_mmcif_single_read(struct sh_mmcif_host *host,
 			   BLOCK_SIZE_MASK) + 3;
 
 	host->wait_for = MMCIF_WAIT_FOR_READ;
+	host->pio_ptr = sg_virt(mrq->data->sg);
 
 	/* buf read enable */
 	sh_mmcif_bitset(host, MMCIF_CE_INT_MASK, MASK_MBUFREN);
@@ -722,6 +723,7 @@ static void sh_mmcif_single_write(struct sh_mmcif_host *host,
 			   BLOCK_SIZE_MASK) + 3;
 
 	host->wait_for = MMCIF_WAIT_FOR_WRITE;
+	host->pio_ptr = sg_virt(mrq->data->sg);
 
 	/* buf write enable */
 	sh_mmcif_bitset(host, MMCIF_CE_INT_MASK, MASK_MBUFWEN);

@@ -146,6 +146,13 @@
 			status = "disabled";
 		};
 
+		ir_receiver: ir-receiver@c8100580 {
+			compatible= "amlogic,meson6-ir";
+			reg = <0xc8100580 0x20>;
+			interrupts = <0 15 1>;
+			status = "disabled";
+		};
+
 		ethmac: ethernet@c9410000 {
 			compatible = "amlogic,meson8b-dwmac", "snps,dwmac";
 			reg = <0xc9410000 0x10000>;
@@ -203,6 +210,13 @@
 					function = "uart_ao";
 				};
 			};
+
+			ir_recv_pins: ir-receiver@c8100580 {
+				mux {
+					groups = "remote_input";
+					function = "remote";
+				}
+			}
 
 			mmc0_sd_b_pins: mmc0_sd_b {
 				mux {

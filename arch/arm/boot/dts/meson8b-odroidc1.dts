@@ -87,6 +87,12 @@
 	pinctrl-names = "default";
 };
 
+&ir_receiver {
+	status = "okay";
+	pinctrl-0 = <&ir_recv_pins>;
+	pinctrl-names = "default";
+};
+
 &ethmac {
 	status = "okay";
 	pinctrl-0 = <&eth_pins>;

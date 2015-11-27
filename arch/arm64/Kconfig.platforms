@@ -72,6 +72,7 @@ config ARCH_SHMOBILE
 config ARCH_RENESAS
 	bool "Renesas SoC Platform"
 	select ARCH_SHMOBILE
+	select PINCTRL	
 	select PM_GENERIC_DOMAINS if PM
 	help
 	  This enables support for the ARMv8 based Renesas SoCs.

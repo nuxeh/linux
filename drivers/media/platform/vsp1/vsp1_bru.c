@@ -97,6 +97,9 @@ static int bru_s_stream(struct v4l2_subdev *subdev, int enable)
 	if (!enable)
 		return 0;
 
+	if (!pipe)
+		return 0;
+
 #ifdef VSP1_DL_SUPPORT
 	ret = vsp1_dl_get(bru->entity.vsp1, DL_BODY_BRU);
 	if (ret < 0)

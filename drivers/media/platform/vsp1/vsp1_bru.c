@@ -98,7 +98,9 @@ static int bru_s_stream(struct v4l2_subdev *subdev, int enable)
 		return 0;
 
 #ifdef VSP1_DL_SUPPORT
-	vsp1_dl_get(bru->entity.vsp1, DL_BODY_BRU);
+	ret = vsp1_dl_get(bru->entity.vsp1, DL_BODY_BRU);
+	if (ret < 0)
+		return ret;
 #endif
 
 	format = &bru->entity.formats[bru->entity.source_pad];

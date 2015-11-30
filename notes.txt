@@ -1,0 +1,39 @@
+This release is based on the v4.2/rcar-3.0.x branch from the 
+git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas-bsp.git
+as the current upstream does not have as many features enabled yet.
+
+There have been a couple of fixes to ensure the H3 build works on the
+H3 Salvator-X board. The framebuffer blank code caused an OOPS due to
+several functions failing to check for a NULL setting and to ensure
+the kernel works when just the Renesas SoCs are selected.
+
+Notes:
+
+Due to issues with console blanking, it is recommended that the console
+blanking is turned off with the kernel command line paramter "consoleblank=0"
+
+Known issues:
+
+Audio has yet to be succesfully tested due to issues with the rcar-dma driver
+failing.
+
+To build:
+
+export CROSS_COMPILE=aarch64-linux-gnu-
+export ARCH=arm64
+make h3_defconfig
+make -j8 Image
+
+To boot (via u-boot):
+
+# change these network settings to ones appropriate for the board
+setenv ethaddr 2e:09:0a:00:9f:9f; setenv netmask 255.255.0.0
+setenv ipaddr 10.24.102.99; setenv serverip 10.24.1.119
+
+# set to boot from sata or usb device
+setenv bootargs console=ttySC0,115200 mem=2048M root=/dev/sda1 rootwait
+
+# copy slav.img (arch/arm64/boot/Image) to tftp server
+# copy r8a7795-salvator-x.dtb (arch/arm64/boot/dts/renesas/r8a7795-salvator-x.dtb) to tftp server
+
+tftp 0x48080000 salv.img; tftp 0x48000000 r8a7795-salvator-x.dtb; booti 0x48080000 - 0x48000000

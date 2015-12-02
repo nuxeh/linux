@@ -215,8 +215,8 @@
 				mux {
 					groups = "remote_input";
 					function = "remote";
-				}
-			}
+				};
+			};
 
 			mmc0_sd_b_pins: mmc0_sd_b {
 				mux {

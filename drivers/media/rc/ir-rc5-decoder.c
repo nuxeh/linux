@@ -53,6 +53,8 @@ static int ir_rc5_decode(struct rc_dev *dev, struct ir_raw_event ev)
 	u32 scancode;
 	enum rc_type protocol;
 
+	printk("Decoding RC5\n");
+
 	if (!(dev->enabled_protocols & (RC_BIT_RC5 | RC_BIT_RC5X | RC_BIT_RC5_SZ)))
 		return 0;
 
@@ -121,10 +123,13 @@ again:
 		goto again;
 
 	case STATE_FINISHED:
-		if (ev.pulse)
+		if (ev.pulse) {
+			printk("ev.pulse, break");
 			break;
+		}
 
 		if (data->is_rc5x && data->count == RC5X_NBITS) {
+			printk("Is RC5X\n");
 			/* RC5X */
 			u8 xdata, command, system;
 			if (!(dev->enabled_protocols & RC_BIT_RC5X)) {
@@ -140,6 +145,7 @@ again:
 			protocol = RC_TYPE_RC5X;
 
 		} else if (!data->is_rc5x && data->count == RC5_NBITS) {
+			printk("Is RC5\n");
 			/* RC5 */
 			u8 command, system;
 			if (!(dev->enabled_protocols & RC_BIT_RC5)) {
@@ -154,6 +160,7 @@ again:
 			protocol = RC_TYPE_RC5;
 
 		} else if (!data->is_rc5x && data->count == RC5_SZ_NBITS) {
+			printk("Is Streamzap\n");
 			/* RC5 StreamZap */
 			u8 command, system;
 			if (!(dev->enabled_protocols & RC_BIT_RC5_SZ)) {
@@ -166,8 +173,10 @@ again:
 			scancode = system << 6 | command;
 			protocol = RC_TYPE_RC5_SZ;
 
-		} else
+		} else {
+			printk("Is not RC5\n");
 			break;
+		}
 
 		IR_dprintk(1, "RC5(x/sz) scancode 0x%06x (p: %u, t: %u)\n",
 			   scancode, protocol, toggle);

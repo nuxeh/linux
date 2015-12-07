@@ -576,6 +576,13 @@
 	status = "okay";
 	clock-frequency = <400000>;
 
+	gpio@20 {
+		compatible = "onsemi,pca9654", "nxp,pca9534";
+		reg = <0x20>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <25 IRQ_TYPE_LEVEL_LOW>;
+	};
+
 	composite-in@70 {
 		compatible = "adi,adv7482";
 		reg = <0x70>;

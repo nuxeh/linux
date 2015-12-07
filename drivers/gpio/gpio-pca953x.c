@@ -517,14 +517,13 @@ static irqreturn_t pca953x_irq_handler(int irq, void *devid)
 }
 
 static int pca953x_irq_setup(struct pca953x_chip *chip,
-			     const struct i2c_device_id *id,
+			     unsigned int driver_data,
 			     int irq_base)
 {
 	struct i2c_client *client = chip->client;
 	int ret, i, offset = 0;
 
-	if (client->irq && irq_base != -1
-			&& (id->driver_data & PCA_INT)) {
+	if (client->irq && irq_base != -1 && (driver_data & PCA_INT)) {
 
 		switch (chip->chip_type) {
 		case PCA953X_TYPE:
@@ -581,12 +580,12 @@ static int pca953x_irq_setup(struct pca953x_chip *chip,
 
 #else /* CONFIG_GPIO_PCA953X_IRQ */
 static int pca953x_irq_setup(struct pca953x_chip *chip,
-			     const struct i2c_device_id *id,
+			     unsigned int driver_data,
 			     int irq_base)
 {
 	struct i2c_client *client = chip->client;
 
-	if (irq_base != -1 && (id->driver_data & PCA_INT))
+	if (irq_base != -1 && (driver_data & PCA_INT))
 		dev_warn(&client->dev, "interrupt support not compiled in\n");
 
 	return 0;
@@ -646,14 +645,24 @@ out:
 	return ret;
 }
 
+static const struct of_device_id pca953x_dt_ids[];
+
 static int pca953x_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
 	struct pca953x_platform_data *pdata;
+	const struct of_device_id *match;
 	struct pca953x_chip *chip;
+	unsigned int driver_data;
 	int irq_base = 0;
 	int ret;
 	u32 invert = 0;
+
+	match = of_match_device(pca953x_dt_ids, &client->dev);
+	if (match)
+		driver_data = (int)(uintptr_t)match->data;
+	else
+		driver_data = id->driver_data;
 
 	chip = devm_kzalloc(&client->dev,
 			sizeof(struct pca953x_chip), GFP_KERNEL);
@@ -672,15 +681,14 @@ static int pca953x_probe(struct i2c_client *client,
 	}
 
 	chip->client = client;
-
-	chip->chip_type = id->driver_data & (PCA953X_TYPE | PCA957X_TYPE);
+	chip->chip_type = driver_data & (PCA953X_TYPE | PCA957X_TYPE);
 
 	mutex_init(&chip->i2c_lock);
 
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
 	 */
-	pca953x_setup_gpio(chip, id->driver_data & PCA_GPIO_MASK);
+	pca953x_setup_gpio(chip, driver_data & PCA_GPIO_MASK);
 
 	if (chip->chip_type == PCA953X_TYPE)
 		ret = device_pca953x_init(chip, invert);
@@ -693,7 +701,7 @@ static int pca953x_probe(struct i2c_client *client,
 	if (ret)
 		return ret;
 
-	ret = pca953x_irq_setup(chip, id, irq_base);
+	ret = pca953x_irq_setup(chip, driver_data, irq_base);
 	if (ret)
 		return ret;
 
@@ -729,35 +737,39 @@ static int pca953x_remove(struct i2c_client *client)
 	return 0;
 }
 
+/* convenience to stop overlong match-table lines */
+#define OF_953X(__nrgpio, __int) (void *)(__nrgpio | PCA953X_TYPE | __int)
+#define OF_957X(__nrgpio, __int) (void *)(__nrgpio | PCA957X_TYPE | __int)
+
 static const struct of_device_id pca953x_dt_ids[] = {
-	{ .compatible = "nxp,pca9505", },
-	{ .compatible = "nxp,pca9534", },
-	{ .compatible = "nxp,pca9535", },
-	{ .compatible = "nxp,pca9536", },
-	{ .compatible = "nxp,pca9537", },
-	{ .compatible = "nxp,pca9538", },
-	{ .compatible = "nxp,pca9539", },
-	{ .compatible = "nxp,pca9554", },
-	{ .compatible = "nxp,pca9555", },
-	{ .compatible = "nxp,pca9556", },
-	{ .compatible = "nxp,pca9557", },
-	{ .compatible = "nxp,pca9574", },
-	{ .compatible = "nxp,pca9575", },
-	{ .compatible = "nxp,pca9698", },
+	{ .compatible = "nxp,pca9505", .data = OF_953X(40, PCA_INT), },
+	{ .compatible = "nxp,pca9534", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "nxp,pca9535", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "nxp,pca9536", .data = OF_953X( 4, 0), },
+	{ .compatible = "nxp,pca9537", .data = OF_953X( 4, PCA_INT), },
+	{ .compatible = "nxp,pca9538", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "nxp,pca9539", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "nxp,pca9554", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "nxp,pca9555", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "nxp,pca9556", .data = OF_953X( 8, 0), },
+	{ .compatible = "nxp,pca9557", .data = OF_953X( 8, 0), },
+	{ .compatible = "nxp,pca9574", .data = OF_957X( 8, PCA_INT), },
+	{ .compatible = "nxp,pca9575", .data = OF_957X(16, PCA_INT), },
+	{ .compatible = "nxp,pca9698", .data = OF_953X(40, 0), },
 
-	{ .compatible = "maxim,max7310", },
-	{ .compatible = "maxim,max7312", },
-	{ .compatible = "maxim,max7313", },
-	{ .compatible = "maxim,max7315", },
+	{ .compatible = "maxim,max7310", .data = OF_953X( 8, 0), },
+	{ .compatible = "maxim,max7312", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "maxim,max7313", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "maxim,max7315", .data = OF_953X( 8, PCA_INT), },
 
-	{ .compatible = "ti,pca6107", },
-	{ .compatible = "ti,tca6408", },
-	{ .compatible = "ti,tca6416", },
-	{ .compatible = "ti,tca6424", },
+	{ .compatible = "ti,pca6107", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "ti,tca6408", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "ti,tca6416", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "ti,tca6424", .data = OF_953X(24, PCA_INT), },
 
-	{ .compatible = "onsemi,pca9654" },
+	{ .compatible = "onsemi,pca9654", .data = OF_953X( 8, PCA_INT), },
 
-	{ .compatible = "exar,xra1202", },
+	{ .compatible = "exar,xra1202", .data = OF_953X( 8, 0), },
 	{ }
 };
 

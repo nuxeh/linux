@@ -626,7 +626,7 @@
 						 <&s3d4_clk>, <&mso_clk>,
 						 <&mso_clk>, <&mso_clk>,
 						 <&mso_clk>, <&s3d1_clk>,
-						 <&s3d1_clk>;
+						 <&s3d1_clk>, <&s3d1_clk>;
 					#clock-cells = <1>;
 					clock-indices = <
 						R8A7795_CLK_SCIF5
@@ -638,6 +638,7 @@
 						R8A7795_CLK_MSIOF1
 						R8A7795_CLK_MSIOF2
 						R8A7795_CLK_MSIOF3
+						R8A7795_CLK_SYS_DMAC2
 						R8A7795_CLK_SYS_DMAC1
 						R8A7795_CLK_SYS_DMAC0
 					>;
@@ -645,7 +646,7 @@
 						"scif5", "scif4", "scif3","scif1",
 						"scif0",
 						"msiof0", "msiof1", "msiof2", "msiof3",
-						"dmac1", "dmac0";
+						"dmac2", "dmac1", "dmac0";
 				};
 
 				mstp3_clks: mstp3_clks@e615013c {

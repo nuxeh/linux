@@ -25,6 +25,7 @@
 #define R8A7795_CLK_RCLK		12
 
 /* MSTP0 */
+#define R8A7795_CLK_RTDMAC		21
 
 /* MSTP1 */
 #define R8A7795_CLK_3DGE		12

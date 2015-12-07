@@ -588,6 +588,16 @@
 						     "rclk";
 				#power-domain-cells = <0>;
 
+				mstp0_clks: mstp0_clks@e6150130 {
+					compatible = "renesas,r8a7795-mstp-clocks",
+						     "renesas,cpg-mstp-clocks";
+					reg = <0 0xe6150130 0 4>, <0 0xe6150030 0 4>;
+					clocks = <&s3d1_clk>;
+					#clock-cells = <1>;
+					renesas,clock-indices = < R8A7795_CLK_RTDMAC >;
+					clock-output-names = "rtdmac";
+				};
+
 				mstp1_clks: mstp1_clks@e6150134 {
 					compatible = "renesas,r8a7795-mstp-clocks",
 						     "renesas,cpg-mstp-clocks";

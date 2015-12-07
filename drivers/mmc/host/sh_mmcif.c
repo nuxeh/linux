@@ -626,8 +626,10 @@ static bool sh_mmcif_next_block(struct sh_mmcif_host *host, u32 *p)
 
 	if (host->sg_blkidx == data->sg->length) {
 		host->sg_blkidx = 0;
-		if (++host->sg_idx < data->sg_len)
-			host->pio_ptr = sg_virt(++data->sg);
+		if (++host->sg_idx < data->sg_len) {
+			data->sg = sg_next(data->sg);
+			host->pio_ptr = sg_virt(data->sg);
+		}
 	} else {
 		host->pio_ptr = p;
 	}

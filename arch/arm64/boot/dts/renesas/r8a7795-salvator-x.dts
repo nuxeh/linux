@@ -898,3 +898,7 @@
 &pciec1 {
 	status = "okay";
 };
+
+&xhci0 {
+	status = "okay";
+};

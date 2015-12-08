@@ -63,7 +63,7 @@ void xhci_rcar_start(struct usb_hcd *hcd)
 {
 	struct device_node *of_node = hcd->self.controller->of_node;
 	u32 temp;
-
+	
 	if (hcd->regs != NULL) {
 		/* Interrupt Enable */
 		temp = readl(hcd->regs + RCAR_USB3_INT_ENA);
@@ -98,13 +98,16 @@ static int xhci_rcar_download_firmware(struct device *dev, void __iomem *regs)
 		fwname = FIRMWARE_NAME2;
 
 	retval = request_firmware(&fw, fwname, dev);
-	if (retval)
+	if (retval) {
+		pr_err("%s: request firmware failed for '%s'\n", __func__, fwname);
 		return retval;
+	}
 
 	/* download R-Car USB3.0 firmware */
 	temp = readl(regs + RCAR_USB3_DL_CTRL);
 	temp |= RCAR_USB3_DL_CTRL_ENABLE;
 	writel(temp, regs + RCAR_USB3_DL_CTRL);
+	pr_info("%s: dl_ctrl=%08x\n", __func__, readl(regs + RCAR_USB3_DL_CTRL));
 
 	for (index = 0; index < fw->size; index += 4) {
 		/* to avoid reading beyond the end of the buffer */
@@ -124,6 +127,7 @@ static int xhci_rcar_download_firmware(struct device *dev, void __iomem *regs)
 			udelay(1);
 		}
 		if (time == timeout) {
+			pr_info("%s: timeout waiting for FW_DATA0\n", __func__);
 			retval = -ETIMEDOUT;
 			break;
 		}
@@ -141,8 +145,10 @@ static int xhci_rcar_download_firmware(struct device *dev, void __iomem *regs)
 		}
 		udelay(1);
 	}
-	if (time == timeout)
+	if (time == timeout) {
+		pr_info("%s: val=%04x\n", __func__, val);
 		retval = -ETIMEDOUT;
+	}
 
 	release_firmware(fw);
 

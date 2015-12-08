@@ -12,12 +12,15 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/usb/phy.h>
+#include <linux/of.h>
 
 #include "xhci.h"
 #include "xhci-rcar.h"
 
 #define FIRMWARE_NAME		"r8a779x_usb3_v1.dlmem"
+#define FIRMWARE_NAME2		"r8a779x_usb3_v2.dlmem"
 MODULE_FIRMWARE(FIRMWARE_NAME);
+MODULE_FIRMWARE(FIRMWARE_NAME2);
 
 /*** Register Offset ***/
 #define RCAR_USB3_INT_ENA	0x224	/* Interrupt Enable */
@@ -58,6 +61,7 @@ MODULE_FIRMWARE(FIRMWARE_NAME);
 
 void xhci_rcar_start(struct usb_hcd *hcd)
 {
+	struct device_node *of_node = hcd->self.controller->of_node;
 	u32 temp;
 
 	if (hcd->regs != NULL) {
@@ -65,6 +69,10 @@ void xhci_rcar_start(struct usb_hcd *hcd)
 		temp = readl(hcd->regs + RCAR_USB3_INT_ENA);
 		temp |= RCAR_USB3_INT_ENA_VAL;
 		writel(temp, hcd->regs + RCAR_USB3_INT_ENA);
+
+		if (of_device_is_compatible(of_node, "renesas,xhci-r8a7795"))
+			return;
+
 		/* LCLK Select */
 		writel(RCAR_USB3_LCLK_ENA_VAL, hcd->regs + RCAR_USB3_LCLK);
 		/* USB3.0 Configuration */
@@ -80,12 +88,16 @@ void xhci_rcar_start(struct usb_hcd *hcd)
 static int xhci_rcar_download_firmware(struct device *dev, void __iomem *regs)
 {
 	const struct firmware *fw;
+	const char *fwname = FIRMWARE_NAME;
 	int retval, index, j, time;
 	int timeout = 10000;
 	u32 data, val, temp;
 
 	/* request R-Car USB3.0 firmware */
-	retval = request_firmware(&fw, FIRMWARE_NAME, dev);
+	if (of_device_is_compatible(dev->of_node, "renesas,xhci-r8a7795"))
+		fwname = FIRMWARE_NAME2;
+
+	retval = request_firmware(&fw, fwname, dev);
 	if (retval)
 		return retval;
 

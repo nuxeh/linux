@@ -658,6 +658,7 @@
 						  <&cpg_clocks R8A7795_CLK_SD2>,
 						  <&cpg_clocks R8A7795_CLK_SD1>,
 						  <&cpg_clocks R8A7795_CLK_SD0>,
+						  <&s3d1_clk>, <&s3d1_clk>,
 						  <&s3d1_clk>, <&s3d1_clk>;
 					#clock-cells = <1>;
 					clock-indices = <
@@ -668,12 +669,15 @@
 						R8A7795_CLK_SDHI0
 						R8A7795_CLK_PCIEC1
 						R8A7795_CLK_PCIEC0
+						R8A7795_CLK_XHCI1
+						R8A7795_CLK_XHCI0
 					>;
 					clock-output-names =
 						"scif2",
 						"sdhi3", "sdhi2",
 						"sdhi1", "sdhi0",
-						"pcie1", "pcie0";
+						"pcie1", "pcie0",
+						"xhci1", "xhci0";
 				};
 
 				mstp4_clks: mstp4@e6150140 {
@@ -1306,7 +1310,7 @@
 			power-domains = <&pd_always_on>;
 			#phy-cells = <0>;
 			status = "disabled";
-		};			
+		};
 
 		ehci0: usb@ee080100 {
 			compatible = "renesas,ehci-r8a7795", "generic-ehci";

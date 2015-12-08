@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#define DEBUG
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
 #include <linux/interrupt.h>
@@ -266,6 +267,10 @@ struct rcar_dmac {
 
 /* Hardcode the MEMCPY transfer size to 4 bytes. */
 #define RCAR_DMAC_MEMCPY_XFER_SIZE	4
+
+#ifndef CONFIG_ARCH_DMA_ADDR_T_64BIT
+#warning not 64bit?
+#endif
 
 /* -----------------------------------------------------------------------------
  * Device access
@@ -928,6 +933,9 @@ rcar_dmac_chan_prep_sg(struct rcar_dmac_chan *chan, struct scatterlist *sgl,
 				size = ALIGN(dev_addr, 1ULL << 32) - dev_addr;
 			if (mem_addr >> 32 != (mem_addr + size - 1) >> 32)
 				size = ALIGN(mem_addr, 1ULL << 32) - mem_addr;
+
+			WARN_ON((dev_addr >> 32) >= 256);
+			WARN_ON((mem_addr >> 32) >= 256);
 
 			/*
 			 * Check if either of the source or destination address

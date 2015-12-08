@@ -1286,6 +1286,28 @@
 			status = "disabled";
 		};
 
+		xhci0: usb@ee000000 {
+			compatible = "renesas,xhci-r8a7795";
+			interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+			reg = <0 0xee000000 0x0 0x1000>;
+			clocks = <&mstp3_clks R8A7795_CLK_XHCI0>;
+			clock-names = "usb3";
+			power-domains = <&pd_always_on>;
+			#phy-cells = <0>;
+			status = "disabled";
+		};
+
+		xhci1: usb@ee040000 {
+			compatible = "renesas,xhci-r8a7795";
+			reg = <0 0xee040000 0x0 0x1000>;
+			interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&mstp3_clks R8A7795_CLK_XHCI1>;
+			clock-names = "usb3";
+			power-domains = <&pd_always_on>;
+			#phy-cells = <0>;
+			status = "disabled";
+		};			
+
 		ehci0: usb@ee080100 {
 			compatible = "renesas,ehci-r8a7795", "generic-ehci";
 			reg = <0 0xee080100 0 0xff>;

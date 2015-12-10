@@ -1,0 +1,116 @@
+
+PCIe (Network 1)
+================
+
+RTL8111E based card does not get detected, the PCIe link is not active so
+either card is not working or the board is incapable of detecting it. We
+believe the card to be faulty.
+
+PCIe (XHCI 1)
+=============
+
+XHCI card tested, the card enumerated on the PCIe bus and the XHCI driver
+correctly identified the card. The two devices plugged fail to be enumerated
+but the kernel did not provide any error information as to why these failed.
+
+[    2.694142] rcar-pcie fe000000.pcie: PCIe x1: link up
+[    2.694270] rcar-pcie fe000000.pcie: PCI host bridge to bus 0000:00
+[    2.694280] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    2.694284] pci_bus 0000:00: root bus resource [io  0x0000-0xfffff]
+[    2.694289] pci_bus 0000:00: root bus resource [mem 0xfe200000-0xfe3fffff]
+[    2.694293] pci_bus 0000:00: root bus resource [mem 0x30000000-0x37ffffff]
+[    2.694297] pci_bus 0000:00: root bus resource [mem 0x38000000-0x3fffffff pref]
+[    2.694321] pci 0000:00:00.0: [1912:0025] type 01 class 0x060400
+[    2.694394] pci 0000:00:00.0: PME# supported from D0 D3hot D3cold
+[    2.694408] pci 0000:00:00.0: of_irq_parse_pci() failed with rc=-19
+[    2.694630] pci 0000:01:00.0: [1106:3483] type 00 class 0x0c0330
+
+xHCI controller bound here:
+
+[    4.088117] xhci_hcd 0000:01:00.0: xHCI Host Controller
+[    4.099381] xhci_hcd 0000:01:00.0: new USB bus registered, assigned bus number 1
+[    4.114650] xhci_hcd 0000:01:00.0: hcc params 0x002841eb hci version 0x100 quirks 0x00000090
+[    4.126205] hub 1-0:1.0: USB hub found
+[    4.132635] hub 1-0:1.0: 1 port detected
+[    4.140692] xhci_hcd 0000:01:00.0: xHCI Host Controller
+[    4.151998] xhci_hcd 0000:01:00.0: new USB bus registered, assigned bus number 2
+
+Some interrupts happened:
+
+root@salvator:~# cat /proc/interrupts  | grep xhci
+424:         63          0          0          0          0          0          0          0  R-Car PCIe MSI   0 Edge      xhci_hcd
+
+The card stopped responding after this so no further tests could be made.
+
+
+PCI (XHCI 2)
+============
+
+XHCI card tested, the card enumerated on the PCIe bus and the XHCI driver
+correctly identified the card. The initial usb flash drive was detected and
+testing completed.
+
+[    2.694072] rcar-pcie fe000000.pcie: PCIe x1: link up
+[    2.694230] rcar-pcie fe000000.pcie: PCI host bridge to bus 0000:00
+
+[    2.694283] pci 0000:00:00.0: [1912:0025] type 01 class 0x060400
+[    2.694352] pci 0000:00:00.0: PME# supported from D0 D3hot D3cold
+[    2.694366] pci 0000:00:00.0: of_irq_parse_pci() failed with rc=-19
+[    2.694626] pci 0000:01:00.0: [1033:0194] type 00 class 0x0c0330
+[    2.694792] pci 0000:01:00.0: reg 0x10: [mem 0x00000000-0x00001fff 64bit]
+
+then;
+
+[    8.697210] xhci_hcd 0000:01:00.0: xHCI Host Controller
+[    8.697234] xhci_hcd 0000:01:00.0: new USB bus registered, assigned bus number 7
+[    8.701325] xhci_hcd 0000:01:00.0: hcc params 0x014042cb hci version 0x96 quirks 0x00000004
+[    8.704708] hub 7-0:1.0: USB hub found
+[    8.704737] hub 7-0:1.0: 2 ports detected
+...
+[    9.024130] usb 7-1: new high-speed USB device number 2 using xhci_hcd
+[    9.174888] usb-storage 7-1:1.0: USB Mass Storage device detected
+[    9.181143] scsi host1: usb-storage 7-1:1.0
+[   10.558624] scsi 1:0:0:0: Direct-Access     JetFlash Transcend 16GB   1100 PQ: 0 ANSI: 6
+[   10.567991] sd 1:0:0:0: [sdb] 30851072 512-byte logical blocks: (15.7 GB/14.7 GiB)
+[   10.571118] sd 1:0:0:0: Attached scsi generic sg1 type 0
+[   10.581393] sd 1:0:0:0: [sdb] Write Protect is off
+[   10.586169] sd 1:0:0:0: [sdb] Mode Sense: 43 00 00 00
+[   10.586671] sd 1:0:0:0: [sdb] Write cache: enabled, read cache: enabled, doesn't support DPO or FUA
+[   10.601883]  sdb: sdb1 sdb2 sdb3 sdb4 < sdb5 sdb6 >
+[   10.609361] sd 1:0:0:0: [sdb] Attached SCSI removable disk
+
+to test, the entire device was read:
+
+dd if=/dev/sdb of=/dev/null bs=1024
+15425536+0 records in
+15425536+0 records out
+15795748864 bytes (16 GB) copied, 425.703 s, 37.1 MB/s
+
+a usb3 ss external hard-disc was also attached:
+
+[ 1629.214271] usb 8-2: new SuperSpeed USB device number 2 using xhci_hcd
+[ 1629.241845] usb-storage 8-2:1.0: USB Mass Storage device detected
+[ 1629.248175] scsi host2: usb-storage 8-2:1.0
+[ 1630.245206] scsi 2:0:0:0: Direct-Access     WD       Elements 1078    1065 PQ: 0 ANSI: 6
+[ 1630.254974] sd 2:0:0:0: Attached scsi generic sg2 type 0
+[ 1630.261405] sd 2:0:0:0: [sdc] Spinning up disk...
+[ 1631.274071] ......ready
+[ 1636.325603] sd 2:0:0:0: [sdc] 1953458176 512-byte logical blocks: (1.00 TB/931 GiB)
+[ 1636.333756] sd 2:0:0:0: [sdc] Write Protect is off
+[ 1636.339190] sd 2:0:0:0: [sdc] Mode Sense: 53 00 10 08
+[ 1636.339766] sd 2:0:0:0: [sdc] No Caching mode page found
+[ 1636.345405] sd 2:0:0:0: [sdc] Assuming drive cache: write through
+[ 1636.634945]  sdc: sdc1 sdc2 < sdc5 sdc6 sdc7 sdc8 sdc9 sdc10 sdc11 sdc12 >
+[ 1636.644997] sd 2:0:0:0: [sdc] Attached SCSI disk
+
+dd if=/dev/sdc of=/dev/null bs=4096
+
+Note, this test failed to complete due to an OOPS:
+
+[ 2826.584270] Bad mode in Error handler detected, code 0xbf000002 -- SError                                                                                                           
+[ 2826.591041] CPU: 0 PID: 1934 Comm: systemd-udevd Not tainted 4.2.0-h3+ #53                                                                                                          
+[ 2826.597878] Hardware name: Renesas Salvator-X board based on r8a7795 (DT)                                                                                                           
+[ 2826.604630] task: ffffffc5bc7cc380 ti: ffffffc5baf0c000 task.ti: ffffffc5baf0c000                                                                                                   
+[ 2826.612074] PC is at 0x7f7e24f988                                                                                                                                                   
+[ 2826.615367] LR is at 0x555c75389c                                                                                                                                                   
+[ 2826.618660] pc : [<0000007f7e24f988>] lr : [<000000555c75389c>] pstate: 00000000                                                                                                    

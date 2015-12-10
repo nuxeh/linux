@@ -1,0 +1,73 @@
+XHCI 0 (Host)
+=============
+
+Driver module requires
+
+The initial insertion of SuperSpeed device, 
+
+[    9.614472] usb 8-1: new SuperSpeed USB device number 2 using xhci-hcd
+[    9.635890] usb 8-1: device descriptor read/8, error -61
+[    9.744059] usb 8-1: new SuperSpeed USB device number 2 using xhci-hcd
+[    9.765884] usb 8-1: device descriptor read/8, error -61
+[   10.264332] usb 8-1: Device not responding to setup address.
+[   10.474331] usb 8-1: Device not responding to setup address.
+[   10.684058] usb 8-1: device not accepting address 3, error -71
+[   11.074358] usb 8-1: Device not responding to setup address.
+[   11.284355] usb 8-1: Device not responding to setup address.
+[   11.494060] usb 8-1: device not accepting address 4, error -71
+[   11.884324] usb 8-1: Device not responding to setup address.
+[   12.094399] usb 8-1: Device not responding to setup address.
+[   12.294708] ravb e6800000.ethernet eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+[   12.304424] usb 8-1: device not accepting address 5, error -71
+[   12.310358] usb usb8-port1: unable to enumerate USB device
+[   12.704480] usb 8-1: new SuperSpeed USB device number 6 using xhci-hcd
+[   12.725898] usb 8-1: device descriptor read/8, error -61
+[   12.834062] usb 8-1: new SuperSpeed USB device number 6 using xhci-hcd
+[   12.855894] usb 8-1: device descriptor read/8, error -61
+[   13.354335] usb 8-1: Device not responding to setup address.
+[   13.564333] usb 8-1: Device not responding to setup address.
+[   13.774054] usb 8-1: device not accepting address 7, error -71
+[   14.164378] usb 8-1: Device not responding to setup address.
+[   14.374369] usb 8-1: Device not responding to setup address.
+[   14.584065] usb 8-1: device not accepting address 8, error -71
+[   14.974344] usb 8-1: Device not responding to setup address.
+[   15.184336] usb 8-1: Device not responding to setup address.
+[   15.394059] usb 8-1: device not accepting address 9, error -71
+[   15.399919] usb usb8-port1: unable to enumerate USB device
+[   15.794516] usb 8-1: new SuperSpeed USB device number 10 using xhci-hcd
+[   15.815907] usb 8-1: device descriptor read/8, error -61
+[   15.924060] usb 8-1: new SuperSpeed USB device number 10 using xhci-hcd
+[   15.945900] usb 8-1: device descriptor read/8, error -61
+[   16.444351] usb 8-1: Device not responding to setup address.
+[   16.654351] usb 8-1: Device not responding to setup address.
+[   16.864065] usb 8-1: device not accepting address 11, error -71
+[   17.254350] usb 8-1: Device not responding to setup address.
+[   17.464370] usb 8-1: Device not responding to setup address.
+[   17.674059] usb 8-1: device not accepting address 12, error -71
+[   18.064342] usb 8-1: Device not responding to setup address.
+[   18.274335] usb 8-1: Device not responding to setup address.
+[   18.484099] usb 8-1: device not accepting address 13, error -71
+[   18.490136] usb usb8-port1: unable to enumerate USB device
+[   18.884489] usb 8-1: new SuperSpeed USB device number 14 using xhci-hcd
+[   18.905915] usb 8-1: device descriptor read/8, error -61
+[   19.014078] usb 8-1: new SuperSpeed USB device number 14 using xhci-hcd
+[   19.035911] usb 8-1: device descriptor read/8, error -61
+[   19.534343] usb 8-1: Device not responding to setup address.
+[   19.744339] usb 8-1: Device not responding to setup address.
+[   19.954116] usb 8-1: device not accepting address 15, error -71
+[   20.344399] usb 8-1: Device not responding to setup address.
+[   20.554400] usb 8-1: Device not responding to setup address.
+[   20.764107] usb 8-1: device not accepting address 16, error -71
+[   20.771941] random: nonblocking pool is initialized
+[   21.154394] usb 8-1: Device not responding to setup address.
+[   21.364350] usb 8-1: Device not responding to setup address.
+[   21.574060] usb 8-1: device not accepting address 17, error -71
+[   21.580053] usb usb8-port1: unable to enumerate USB device
+[   21.974498] usb 8-1: new SuperSpeed USB device number 18 using xhci-hcd
+[   22.002585] usb-storage 8-1:1.0: USB Mass Storage device detected
+[   22.008859] scsi host1: usb-storage 8-1:1.0
+[   23.005104] scsi 1:0:0:0: Direct-Access     WD       Elements 1078    1065 PQ: 0 ANSI: 6
+[   23.013901] sd 1:0:0:0: Attached scsi generic sg1 type 0
+[   23.019491] sd 1:0:0:0: [sdb] Sector size 0 reported, assuming 512.
+
+However this then fails to read any data from the drive.

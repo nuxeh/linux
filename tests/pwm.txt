@@ -1,0 +1,48 @@
+PWM (1)
+=======
+
+Set SW5 to 2-3 to monitor the PWM1 signal on the backlight pwm connector or
+monitor pin 2 on SW5. Ideally 200ns/div or 500ns/div
+
+To export device:
+
+$ cd /sys/bus/platform/devices/e6e31000.pwm/pwm/pwmchip0/
+$ echo 0 > export
+
+To start:
+$ cd pwm0
+$ echo 1000 > period
+$ echo 500 > duty_cycle
+$ echo 1 > enable
+
+change width to 25:75
+$ echo 250 > duty_cycle
+
+The driver does not support the polarity inversion by
+$ echo 0 > enable
+$ echo inversed > polarity
+$ echo 1 > enable
+
+
+PWM (2)
+=======
+
+To get PWM2, monitor pin2 on SW6
+
+to export pwm:
+$ cd /sys/bus/platform/devices/e6e32000.pwm/pwm/pwmchip1
+$ echo 0 > export
+
+to start
+$ cd pwm0
+$ echo 1000 > period
+$ echo 500 > duty_cycle
+$ echo 1 > enable
+
+this will produce a 1000ns repeated square wave of 50:50 duty.
+
+
+Notes
+-----
+
+The sysfs-api is at: https://www.kernel.org/doc/Documentation/pwm.txt

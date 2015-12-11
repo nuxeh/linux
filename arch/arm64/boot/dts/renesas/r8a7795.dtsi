@@ -702,7 +702,7 @@
 						<&extal_clk>, <&s3d4_clk>;
 					#clock-cells = <1>;
 					clock-indices = <
-						R8A7795_CLK_AUDIO_DMAC0 R8A7795_CLK_AUDIO_DMAC1
+						R8A7795_CLK_AUDIO_DMAC1 R8A7795_CLK_AUDIO_DMAC0
 						R8A7795_CLK_HSCIF4
 						R8A7795_CLK_HSCIF3
 						R8A7795_CLK_HSCIF2
@@ -711,7 +711,7 @@
 						R8A7795_CLK_THERMAL R8A7795_CLK_PWM
 					>;
 					clock-output-names =
-						"audio_dmac0", "audio_dmac1",
+						"audio_dmac1", "audio_dmac0",
 						"hscif4", "hscif3", "hscif2",
 						"hscif1", "hscif0",
 						"thermal", "pwm";

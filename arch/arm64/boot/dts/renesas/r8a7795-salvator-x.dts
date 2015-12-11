@@ -497,7 +497,8 @@
 
 	/* audio_clkout0/1/2/3 */
 	#clock-cells = <1>;
-	clock-frequency = <12288000>;
+	/* use clock-frequency = <12288000> for 48kHz playback base */
+	clock-frequency = <11289600>;
 
 	status = "okay";
 

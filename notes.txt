@@ -14,8 +14,44 @@ blanking is turned off with the kernel command line paramter "consoleblank=0"
 
 Known issues:
 
-Audio has yet to be succesfully tested due to issues with the rcar-dma driver
-failing.
+Audio has yet to be succesfully tested, the driver has significant r8a7795
+and salvator-x support, but no audio is being played (and there is no i2s
+signals being observed at the codec)
+
+USB3 host is not working, it is not known if this due to settings on the
+r8a7795 or some fault on the salvator-x board. There isn't sufficient
+debug information in the r8a7795 manual.
+
+PCIe works under light to medium load. An XHCI card with high-speed device
+is operational but the same card with a SuperSpeed device causes they system
+to crash. Further testing has been moved to future time.
+
+The du outputs are currently being fed from one plane. Further testing with
+multiple channels will be in a future release.
+
+No further progress on the CSI/VIN has been made, the CSI driver is detecting
+video but there is no video data being transfered. This is schedulded for
+further investigation.
+
+SYS-DMAC2 does not currently work, and using it will cause the board to lock.
+
+The EthernetAVB block will not run correctly at 1Gbps speeds on the salvator-x
+board. It is not known if this is a board or SoC issue and since the 10/100M
+operation is fine this is not currently a priority to fix.
+
+
+Updates since previous release (878f54de565b58cdcd38fb54e431bb5d9c9566f5)
+=========================================================================
+
+- RT-DMAC device nodes added and block tested
+- XHCI0 device nodes and firmware loading added (see XHCI USB3 notes)
+- Onboard gpio expander added (and driver loading bug fixed)
+- PWM channels 1 and 2 have been tested
+
+Updates to the h3_defconfig have been made to reflect the current development
+work. 
+
+
 
 To build:
 

@@ -208,6 +208,7 @@ static void rsnd_ssi_hw_start(struct rsnd_ssi *ssi,
 		cr_mode		|
 		EN;
 
+	cr |= FORCE;
 	rsnd_mod_write(mod, SSICR, cr);
 
 	/* enable WS continue */
@@ -246,7 +247,7 @@ static void rsnd_ssi_hw_stop(struct rsnd_dai_stream *io, struct rsnd_ssi *ssi)
 		cr  =	ssi->cr_own	|
 			ssi->cr_clk;
 
-		rsnd_mod_write(mod, SSICR, cr | EN);
+		rsnd_mod_write(mod, SSICR, cr | FORCE | EN);
 		rsnd_ssi_status_check(mod, DIRQ);
 
 		/*

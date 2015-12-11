@@ -512,6 +512,14 @@
 	};
 };
 
+&ssi0 {
+	pio-transfer;
+};
+
+&ssi1 {
+	pio-transfer;
+};
+
 &ssi1 {
 	shared-pin;
 };

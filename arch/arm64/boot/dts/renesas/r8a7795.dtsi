@@ -807,6 +807,7 @@
 					clocks = <&cp_clk>, <&cp_clk>, <&cp_clk>,
 						 <&cp_clk>, <&cp_clk>, <&cp_clk>,
 						 <&cp_clk>, <&cp_clk>, <&s3d2_clk>,
+						 <&s0d4_clk>,
 						 <&s3d2_clk>, <&s3d2_clk>, <&s3d2_clk>,
 						 <&s3d2_clk>, <&s3d2_clk>, <&s3d2_clk>;
 					#clock-cells = <1>;
@@ -815,6 +816,7 @@
 						R8A7795_CLK_GPIO5 R8A7795_CLK_GPIO4
 						R8A7795_CLK_GPIO3 R8A7795_CLK_GPIO2
 						R8A7795_CLK_GPIO1 R8A7795_CLK_GPIO0
+						R8A7795_CLK_ADG
 						R8A7795_CLK_I2C6 R8A7795_CLK_I2C5
 						R8A7795_CLK_I2C4 R8A7795_CLK_I2C3
 						R8A7795_CLK_I2C2 R8A7795_CLK_I2C1

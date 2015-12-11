@@ -461,7 +461,7 @@
 	};
 
 	sound_clk_pins: sound_clk {
-		renesas,groups = "audio_clkout3_a";
+		renesas,groups = "audio_clk_a_a", "audio_clk_b_a", "audio_clk_c_a", "audio_clkout_a", "audio_clkout3_a";
 		renesas,function = "audio_clk";
 	};
 };

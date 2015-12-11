@@ -1,7 +1,8 @@
 XHCI 0 (Host)
 =============
 
-Driver module requires
+Driver module requires firmware, so the xhci driver is built as a module
+and loaded via automatic module loading once the root filesystem is loaded.
 
 The initial insertion of SuperSpeed device, 
 
@@ -71,3 +72,12 @@ The initial insertion of SuperSpeed device,
 [   23.019491] sd 1:0:0:0: [sdb] Sector size 0 reported, assuming 512.
 
 However this then fails to read any data from the drive.
+
+Notes
+-----
+
+U11 provides the two USB channel clocks at 100MHz differential.
+X6 provides 50MHz clock for usb system.
+
+Both clocks are active when the driver is started (as verified by an
+oscilloscope)

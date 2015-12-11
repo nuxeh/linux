@@ -131,6 +131,12 @@ void rsnd_bset(struct rsnd_priv *priv, struct rsnd_mod *mod,
 	dev_dbg(dev, "b %s[%d] - %4d : %08x/%08x\n",
 		rsnd_mod_name(mod), rsnd_mod_id(mod), reg, data, mask);
 
+	if ((data & mask) != data) {
+		pr_err("%s: data %08x has bits in not in mask %08x\n",
+		       __func__, data, mask);
+		WARN_ON(1);
+	}
+
 	regmap_fields_update_bits(gen->regs[reg], rsnd_mod_id(mod),
 				  mask, data);
 }

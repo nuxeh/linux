@@ -2823,8 +2823,14 @@ static inline void update_load_avg(struct sched_entity *se, int update_tg)
 	if (update_cfs_rq_load_avg(now, cfs_rq) && update_tg)
 		update_tg_load_avg(cfs_rq, 0);
 
-	if (entity_is_task(se))
-		trace_sched_load_avg_task(task_of(se), &se->avg);
+
+	if (!entity_is_task(se))
+		return;
+
+	/* Get the top level CFS RQ for the task CPU */
+	cfs_rq = &(task_rq(task_of(se))->cfs);
+
+	trace_sched_load_avg_task(task_of(se), &se->avg);
 	trace_sched_load_avg_cpu(cpu, cfs_rq);
 }
 

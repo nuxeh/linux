@@ -14,9 +14,8 @@ blanking is turned off with the kernel command line paramter "consoleblank=0"
 
 Known issues:
 
-Audio has yet to be succesfully tested, the driver has significant r8a7795
-and salvator-x support, but no audio is being played (and there is no i2s
-signals being observed at the codec)
+Audio support is currently missing DMA. There is limited support in to just
+output audio using the SSI block without any audio pipleline.
 
 USB3 host is not working, it is not known if this due to settings on the
 r8a7795 or some fault on the salvator-x board. There isn't sufficient
@@ -34,10 +33,20 @@ video but there is no video data being transfered. This is schedulded for
 further investigation.
 
 SYS-DMAC2 does not currently work, and using it will cause the board to lock.
+This is noted in the BSP yocto release notes #79019
 
 The EthernetAVB block will not run correctly at 1Gbps speeds on the salvator-x
 board. It is not known if this is a board or SoC issue and since the 10/100M
 operation is fine this is not currently a priority to fix.
+(This is noted in the yocto release notes)
+
+
+Updates since previous release
+==============================
+
+- Audio as PIO only added
+ - Fixed minor issues with audio clocking
+- Updates for release
 
 
 Updates since previous release (878f54de565b58cdcd38fb54e431bb5d9c9566f5)

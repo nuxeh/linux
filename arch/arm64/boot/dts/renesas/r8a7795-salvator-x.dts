@@ -412,7 +412,7 @@
 	};
 
 	msiof0_pins: spi1 {
-		renesas,groups = "msiof0_clk", "msiof0_sync",
+		renesas,groups = "msiof0_clk",
 				"msiof0_rxd",  "msiof0_txd";
 		renesas,function = "msiof0";
 	};

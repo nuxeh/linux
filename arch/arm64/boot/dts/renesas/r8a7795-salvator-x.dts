@@ -48,7 +48,12 @@
 	};
 
 	chosen {
+#if 0	/* standard */
 		bootargs = "console=ttySC0,115200 ignore_loglevel";
+#else
+		//bootargs = "console=ttySC0,115200 root=/dev/sda1 rootwait blanktime=0";
+		bootargs = "console=ttySC0,115200 root=/dev/sda1 rootwait consoleblank=0";
+#endif
 		stdout-path = &scif2;
 	};
 

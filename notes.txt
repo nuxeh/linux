@@ -40,9 +40,24 @@ board. It is not known if this is a board or SoC issue and since the 10/100M
 operation is fine this is not currently a priority to fix.
 (This is noted in the yocto release notes)
 
-
 Updates since previous release
-==============================
+===============================
+
+- Add debug for ioremap.c warning if attempt to remap kernel memory (pvr)
+- The msiof0_sync pin is used for audio clock on salvator-x board
+- Fixed sh-pfc for r8a7795 pins that have GPSR only control.
+- Added HSCIF0 (BT_UART expansion header)
+
+MSIOF0 has been tested to pins now the pinctrl is fixed and the other MSIOF
+blocks respond to transfer requests. This is as far as the MSIOF blocks can
+be tested on the Slavator-X board.
+
+SCIF1 and SCIF2 have been tested (SCIF1 is used for console) and HSCIF1
+has been tested by swapping with SCIF1.
+
+
+Updates since previous release (977219891f747464c042fafb5ab5fa360b555275)
+=========================================================================
 
 - Audio as PIO only added
  - Fixed minor issues with audio clocking

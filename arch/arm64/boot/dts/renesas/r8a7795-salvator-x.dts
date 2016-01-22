@@ -43,6 +43,7 @@
 	aliases {
 		serial0 = &scif2;
 		serial1 = &scif1;
+		serial2 = &hscif0;
 		ethernet0 = &avb;
 	};
 
@@ -386,6 +387,11 @@
 		renesas,function = "scif2";
 	};
 
+	hscif0_pins: hscif0 {
+		renesas,groups = "hscif0_data", "hscif0_ctrl";
+		renesas,function = "hscif0";
+	};
+
 	hscif1_pins: hscif1 {
 		renesas,groups = "hscif1_data_a", "hscif1_ctrl_a";
 		renesas,function = "hscif1";
@@ -480,6 +486,12 @@
 	status = "okay";
 
 	clock-frequency = <100000>;
+};
+
+&hscif0 {
+	pinctrl-0 = <&hscif0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
 };
 
 &hscif1 {

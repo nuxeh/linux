@@ -5201,7 +5201,7 @@ static const struct pinmux_cfg_reg pinmux_config_regs[] = {
 		FN_SATA_DEVSLP_A, 0, 0, 0,
 		0, 0, 0, 0,
 		/* IP15_7_4 [4] */
-		FN_SSI_WS6, FN_USB0_OVC, 0, 0,
+		FN_SSI_WS6, FN_USB2_OVC, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 0, 0,

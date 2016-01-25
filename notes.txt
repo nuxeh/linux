@@ -40,8 +40,18 @@ board. It is not known if this is a board or SoC issue and since the 10/100M
 operation is fine this is not currently a priority to fix.
 (This is noted in the yocto release notes)
 
+
 Updates since previous release
-===============================
+==============================
+
+- Fixed USB2_OVC pinctrl definition (stop error from usb2 phy driver)
+
+The RWDT is still not working, awaiting errata to confirm if this is an
+SoC or board issue. SWDT is not available.
+
+
+Updates since previous release (597682df5f2f1f6f8818bb4f6193c39991f717b7)
+=========================================================================
 
 - Add debug for ioremap.c warning if attempt to remap kernel memory (pvr)
 - The msiof0_sync pin is used for audio clock on salvator-x board

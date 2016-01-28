@@ -1012,10 +1012,16 @@ int gpiod_direction_input(struct gpio_desc *desc)
 	}
 
 	chip = desc->chip;
-	if (!chip->get || !chip->direction_input) {
-		gpiod_warn(desc,
-			"%s: missing get() or direction_input() operations\n",
-			__func__);
+	if (!chip->get) {
+		gpiod_warn(desc, "%s: missing get() operation\n", __func__);
+		return -EIO;
+	}
+
+	if (!chip->direction_input) {
+		if (!chip->get && !chip->direction_output)
+			goto only_input;
+
+		gpiod_warn(desc, "%s: missing direction_input()\n", __func__);
 		return -EIO;
 	}
 
@@ -1023,6 +1029,7 @@ int gpiod_direction_input(struct gpio_desc *desc)
 	if (status == 0)
 		clear_bit(FLAG_IS_OUT, &desc->flags);
 
+only_input:
 	trace_gpio_direction(desc_to_gpio(desc), 1, status);
 
 	return status;

@@ -40,11 +40,31 @@ board. It is not known if this is a board or SoC issue and since the 10/100M
 operation is fine this is not currently a priority to fix.
 (This is noted in the yocto release notes)
 
+USB3 XHCI
+---------
+
+The USB3 XHCI driver has been enabled but is not currently working with
+the Salvator-X board. It is not yet known if there is a board or SoC issue
+with it.
+
+The XHCI driver requires firmware to work, and the current setup it will
+not re-request it if the XHCI driver is built into the kernel. If built
+as a module, it should be automatically loaded when the user filesytem
+is mounted and init run. If not, it should be possible to force the
+driver to re-bind using sysfs (not tested)
+
+The firmware is available in the linux firwmare repository.
+
+xhci-hcd ee000000.usb: Direct firmware load for r8a779x_usb3_v2.dlmem failed wi
+th error -2 
+
+
 
 Updates since previous release
 ==============================
 
 - Fixed USB2_OVC pinctrl definition (stop error from usb2 phy driver)
+- Updated current USB3 state (added notes on driver loading)
 
 The RWDT is still not working, awaiting errata to confirm if this is an
 SoC or board issue. SWDT is not available.

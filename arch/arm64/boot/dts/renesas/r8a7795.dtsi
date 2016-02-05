@@ -92,6 +92,7 @@
 			reg = <0x0>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1500000000>;
 			clocks =<&cpg CPG_CORE R8A7795_CLK_Z>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			#cooling-cells = <2>;
@@ -110,6 +111,7 @@
 			reg = <0x1>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1500000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group0_opp_tb0>,
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
@@ -121,6 +123,7 @@
 			reg = <0x2>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1500000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group0_opp_tb0>,
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
@@ -132,6 +135,7 @@
 			reg = <0x3>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1500000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group0_opp_tb0>,
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
@@ -144,6 +148,7 @@
 			reg = <0x100>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1200000000>;
 			clocks = <&cpg CPG_CORE R8A7795_CLK_Z2>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
@@ -154,6 +159,7 @@
 			reg = <0x101>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
@@ -163,6 +169,7 @@
 			reg = <0x102>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
@@ -172,6 +179,7 @@
 			reg = <0x103>;
 			device_type = "cpu";
 			enable-method = "psci";
+			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};

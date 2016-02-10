@@ -362,6 +362,15 @@
 			sound-dai = <&ak4613>;
 		};
 	};
+
+	vcc_usb2_phy0: regulator@0 {
+		compatible = "regulator-fixed";
+		regulator-name = "USB20_VBUS0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&gpio6 16 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
 };
 
 &extal_clk {
@@ -558,6 +567,7 @@
 
 &usb2_phy0 {
 	status = "okay";
+	phy-supply = <&vcc_usb2_phy0>;
 	pinctrl-0 = <&usb0_pins>;
 	pinctrl-names = "default";
 };

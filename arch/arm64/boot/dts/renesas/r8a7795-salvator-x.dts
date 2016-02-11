@@ -382,6 +382,10 @@
 		renesas,groups = "i2c2_a";
 		renesas,function = "i2c2";
 	};
+	i2c3_pins: i2c3 {
+		renesas,groups = "i2c3";
+		renesas,function = "i2c3";
+	};
 	pwm1_pins: pwm1 {
 		renesas,groups = "pwm1_a", "pwm1_b";
 		renesas,function = "pwm1";
@@ -638,6 +642,14 @@
 		clock-names = "clk_in", "ref_clk";
 		clock-frequency = <24576000>; /* 1/1 divide */
 	};
+};
+
+/* test node for i2c3 */
+&i2c3 {
+	pinctrl-0 = <&i2c3_pins>;
+	pinctrl-names = "default";
+
+	clock-frequency = <400000>;
 };
 
 &i2c4 {

@@ -378,6 +378,10 @@
 };
 
 &pfc {
+	i2c2_pins: i2c2 {
+		renesas,groups = "i2c2_a";
+		renesas,function = "i2c2";
+	};
 	pwm1_pins: pwm1 {
 		renesas,groups = "pwm1_a", "pwm1_b";
 		renesas,function = "pwm1";
@@ -615,6 +619,9 @@
 &i2c2 {
 	status = "okay";
 	clock-frequency = <400000>;
+
+	pinctrl-0 = <&i2c2_pins>;
+	pinctrl-names = "default";
 
 	ak4613: codec@0x10 {
 		compatible = "asahi-kasei,ak4613";

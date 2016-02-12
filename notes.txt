@@ -65,6 +65,10 @@ Updates since previous release
 
 - Fixed USB2_OVC pinctrl definition (stop error from usb2 phy driver)
 - Updated current USB3 state (added notes on driver loading)
+- Added usb2-otg support for USB0
+- Fixed issues with i2c3 pinctrl
+- Added pinctrl for i2c2 and i2c3.
+- Fixed PM issue with i2c-rcar
 
 The RWDT is still not working, awaiting errata to confirm if this is an
 SoC or board issue. SWDT is not available.

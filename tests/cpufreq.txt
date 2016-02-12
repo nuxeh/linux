@@ -1,0 +1,55 @@
+				CPU frequency scaling test
+				==========================
+
+This document will how to test cpu scaling on Salvator-X. This H3 Soc has two
+clusters A57 and A53 both clusters have four cores. The A53 cluster has no
+scaling available which means it can either Off or On. A57 Cluster has three
+caling states (1.5GHz, 1GHz, 500MHz) which means you can scale cpu frequency
+by choosing one of the state.
+
+Sysfs interface
+===============
+
+To verify whether these state actually change clocks to A57 cluster change
+frequency from userspace use commands below:
+
+echo userspace > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+echo 40000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
+
+Once a frequency is set a md5 test is used to verify the performance at that
+frequency domain. To check whether frequency you are trying to set is within
+limit you can check it by using sysfs entry using below commands:
+
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+
+Md5 checksum test
+=================
+After modifying scaling for A57 cpu0 (rest of cores were disabled for test in
+T) to 500MHz it took md5sum command about 3.85s Approx to finish checksum on
+424MB file. The same test was perform after the frequency scaling of A57 cpu0
+was changed to 1.5GHz and it took md5sum 3.40s Approx to finish. 
+
+
+Automating the test
+===================
+#!/bin/sh
+
+#500MHz setup for A57 cpu0
+echo userspace > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+echo 500000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
+
+sleep 1 #clock setup time
+
+#test
+date && md5sum test-left.wav && date
+
+#1.5GHz setup for A57 cpu0
+echo 500000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
+
+sleep 1 #clock setup time
+
+#test
+date && md5sum test-left.wav && date
+
+

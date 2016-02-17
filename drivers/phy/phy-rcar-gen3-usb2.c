@@ -36,7 +36,9 @@
 #define USB2_INT_ENABLE_UCOM_INTEN	BIT(3)
 #define USB2_INT_ENABLE_USBH_INTB_EN	BIT(2)
 #define USB2_INT_ENABLE_USBH_INTA_EN	BIT(1)
-#define USB2_INT_ENABLE_INIT		(USB2_INT_ENABLE_UCOM_INTEN | \
+#define USB2_INT_ENABLE_INIT		(USB2_INT_ENABLE_USBH_INTB_EN | \
+					 USB2_INT_ENABLE_USBH_INTA_EN)
+#define USB2_INT_ENABLE_INIT_OTG	(USB2_INT_ENABLE_UCOM_INTEN | \
 					 USB2_INT_ENABLE_USBH_INTB_EN | \
 					 USB2_INT_ENABLE_USBH_INTA_EN)
 
@@ -185,7 +187,12 @@ static int rcar_gen3_phy_usb2_init(struct phy *p)
 	void __iomem *usb2_base = channel->base;
 
 	/* Initialize USB2 part */
-	writel(USB2_INT_ENABLE_INIT, usb2_base + USB2_INT_ENABLE);
+
+	if (channel->has_otg)
+		writel(USB2_INT_ENABLE_INIT_OTG, usb2_base + USB2_INT_ENABLE);
+	else
+		writel(USB2_INT_ENABLE_INIT, usb2_base + USB2_INT_ENABLE);
+
 	writel(USB2_SPD_RSM_TIMSET_INIT, usb2_base + USB2_SPD_RSM_TIMSET);
 	writel(USB2_OC_TIMSET_INIT, usb2_base + USB2_OC_TIMSET);
 

@@ -1348,6 +1348,42 @@ static int adv7482_set_pad_format(struct v4l2_subdev *sd,
 	return adv7482_mbus_fmt(sd, framefmt);
 }
 
+static int adv7482_query_dv_timings(struct v4l2_subdev *sd,
+			struct v4l2_dv_timings *timings)
+{
+	struct adv7482_state *state = to_state(sd);
+	struct v4l2_bt_timings *bt = &timings->bt;
+	u32 status;
+	int ret;
+
+	if (!timings)
+		return -EINVAL;
+
+	memset(timings, 0, sizeof(struct v4l2_dv_timings));
+
+	ret= adv7482_g_input_status(sd, &status);
+	if (ret)
+		return ret;
+	if (status == V4L2_IN_ST_NO_SIGNAL) {
+		// v4l2_dbg(1, debug, sd, "%s: no valid signal\n", __func__);
+		return -ENOLINK;
+	}
+
+	/* Since rcar_csi2_s_power() has done a get_fmt subdev call at
+	 * this point, we can rely on the current resolution having
+	 * been queried and stashed in the 'state' struct.
+	 */
+	bt->height= state->height;
+	bt->width= state->width;
+	/* Return success ** FIXME ** API documentation suggests there
+	 * should be a full timings structure, filled in when any
+	 * change is detected. In adv7604.c, signal detection and a
+	 * full probe is triggered to fill in the current timings
+	 * completely (albeit w/o V4L2_EVENT_SOURCE_CHANGE handling).
+	 */
+	return 0;
+}
+
 /*
  * adv7482_g_mbus_config() - V4L2 decoder i/f handler for g_mbus_config
  * @sd: pointer to standard V4L2 sub-device structure
@@ -1539,6 +1575,7 @@ static const struct v4l2_subdev_video_ops adv7482_video_ops = {
 	.g_input_status = adv7482_g_input_status,
 	.cropcap	= adv7482_cropcap,
 	.g_crop		= adv7482_g_crop,
+	.query_dv_timings = adv7482_query_dv_timings,
 	.g_mbus_config	= adv7482_g_mbus_config,
 };
 

@@ -372,7 +372,7 @@ static int tmio_mmc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	host->init_tuning(host, &num);
 
-	tap = kmalloc(num * 2, GFP_KERNEL);
+	tap = kmalloc(num * 2 * sizeof(*tap), GFP_KERNEL);
 	if (tap == NULL) {
 		ret = -ENOMEM;
 		goto err_tap;

@@ -12,20 +12,10 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <linux/cpufreq.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/kernel_stat.h>
-#include <linux/kobject.h>
-#include <linux/module.h>
-#include <linux/mutex.h>
+#include <linux/cpu.h>
 #include <linux/percpu-defs.h>
 #include <linux/slab.h>
-#include <linux/sysfs.h>
 #include <linux/tick.h>
-#include <linux/types.h>
-#include <linux/cpu.h>
-
 #include "cpufreq_governor.h"
 
 /* On-demand governor macros */
@@ -186,9 +176,6 @@ static void od_check_cpu(int cpu, unsigned int load)
 
 		/* No longer fully busy, reset rate_mult */
 		dbs_info->rate_mult = 1;
-
-		if (freq_next < policy->min)
-			freq_next = policy->min;
 
 		if (!od_tuners->powersave_bias) {
 			__cpufreq_driver_target(policy, freq_next,

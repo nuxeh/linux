@@ -46,6 +46,8 @@ enum suspend_stat_step {
 	SUSPEND_SUSPEND,
 	SUSPEND_SUSPEND_LATE,
 	SUSPEND_SUSPEND_NOIRQ,
+	SUSPEND_SUSPEND_NOIRQ_LATE,
+	SUSPEND_RESUME_NOIRQ_EARLY,
 	SUSPEND_RESUME_NOIRQ,
 	SUSPEND_RESUME_EARLY,
 	SUSPEND_RESUME
@@ -59,9 +61,11 @@ struct suspend_stats {
 	int	failed_suspend;
 	int	failed_suspend_late;
 	int	failed_suspend_noirq;
+	int	failed_suspend_noirq_late;
 	int	failed_resume;
 	int	failed_resume_early;
 	int	failed_resume_noirq;
+	int	failed_resume_noirq_early;
 #define	REC_FAILED_NUM	2
 	int	last_failed_dev;
 	char	failed_devs[REC_FAILED_NUM][40];
@@ -339,6 +343,7 @@ static inline bool system_entering_hibernation(void) { return false; }
 #define PM_POST_SUSPEND		0x0004 /* Suspend finished */
 #define PM_RESTORE_PREPARE	0x0005 /* Going to restore a saved image */
 #define PM_POST_RESTORE		0x0006 /* Restore failed */
+#define PM_USERSPACE_FROZEN	0x0007 /* Userspace frozen */
 
 extern struct mutex pm_mutex;
 
@@ -363,7 +368,7 @@ extern bool pm_wakeup_pending(void);
 extern bool pm_get_wakeup_count(unsigned int *count, bool block);
 extern bool pm_save_wakeup_count(unsigned int count);
 extern void pm_wakep_autosleep_enabled(bool set);
-
+extern void pm_get_active_wakeup_sources(char *pending_sources, size_t max);
 static inline void lock_system_sleep(void)
 {
 	current->flags |= PF_FREEZER_SKIP;
@@ -403,6 +408,8 @@ static inline int unregister_pm_notifier(struct notifier_block *nb)
 	return 0;
 }
 
+static inline void pm_get_active_wakeup_sources(char *pending_sources,
+							size_t max) {}
 #define pm_notifier(fn, pri)	do { (void)(fn); } while (0)
 
 static inline bool pm_wakeup_pending(void) { return false; }

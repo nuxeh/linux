@@ -1,5 +1,6 @@
 /* USB OTG (On The Go) defines */
 /*
+ * Copyright (c) 2015, NVIDIA CORPORATION.  All rights reserved.
  *
  * These APIs may be used between USB controllers.  USB device drivers
  * (for either host or peripheral roles) don't use these calls; they
@@ -18,6 +19,7 @@ enum usb_phy_events {
 	USB_EVENT_ID,           /* id was grounded */
 	USB_EVENT_CHARGER,      /* usb dedicated charger */
 	USB_EVENT_ENUMERATED,   /* gadget driver enumerated */
+	USB_EVENT_HANDLE_OTG_PP,   /* power on/off otg portsc.pp */
 };
 
 /* associate a type with PHY */
@@ -70,6 +72,8 @@ struct usb_phy {
 	enum usb_phy_type	type;
 	enum usb_otg_state	state;
 	enum usb_phy_events	last_event;
+
+	spinlock_t		sync_lock;
 
 	struct usb_otg		*otg;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 NVIDIA Corporation.
+ * Copyright (C) 2010-2014 NVIDIA Corporation. All rights reserved.
  * Copyright (C) 2010 Google, Inc.
  *
  * This software is licensed under the terms of the GNU General Public

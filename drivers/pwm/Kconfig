@@ -28,6 +28,10 @@ menuconfig PWM
 
 if PWM
 
+config PWM_SYSFS
+	bool
+	default y if SYSFS
+
 config PWM_AB8500
 	tristate "AB8500 PWM support"
 	depends on AB8500_CORE && ARCH_U8500
@@ -138,6 +142,7 @@ config PWM_SPEAR
 config PWM_TEGRA
 	tristate "NVIDIA Tegra PWM support"
 	depends on ARCH_TEGRA
+	select HAVE_PWM
 	help
 	  Generic PWM framework driver for the PWFM controller found on NVIDIA
 	  Tegra SoCs.

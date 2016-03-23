@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2007, 2011 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
+ * Copyright (c) 2013-2015, NVIDIA CORPORATION.  All rights reserved.
  *
  * Authors: Xiaobo Xie <X.Xie@freescale.com>
  *	    Anton Vorontsov <avorontsov@ru.mvista.com>
@@ -150,8 +151,11 @@ struct sdhci_host *sdhci_pltfm_init(struct platform_device *pdev,
 		host->ops = pdata->ops;
 	else
 		host->ops = &sdhci_pltfm_ops;
-	if (pdata)
+	if (pdata) {
 		host->quirks = pdata->quirks;
+		host->quirks2 = pdata->quirks2;
+	}
+
 	host->irq = platform_get_irq(pdev, 0);
 
 	if (!request_mem_region(iomem->start, resource_size(iomem),
@@ -234,23 +238,104 @@ int sdhci_pltfm_unregister(struct platform_device *pdev)
 EXPORT_SYMBOL_GPL(sdhci_pltfm_unregister);
 
 #ifdef CONFIG_PM
+#if defined(CONFIG_MMC_RTPM)
+static int sdhci_runtime_suspend(struct device *dev);
+#endif
 static int sdhci_pltfm_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+	int ret;
 
-	return sdhci_suspend_host(host);
+	ret = sdhci_suspend_host(host);
+	if (ret) {
+		dev_err(dev, "suspend failed, error = %d\n", ret);
+		return ret;
+	}
+#if defined(CONFIG_MMC_RTPM)
+	/* disable sdmmc clock before suspend */
+	ret = sdhci_runtime_suspend(dev);
+	if (ret)
+		dev_err(dev, "sdhci runtime suspend failed, error = %d\n", ret);
+#endif
+
+	if (host->ops && host->ops->suspend)
+		ret = host->ops->suspend(host);
+	if (ret) {
+		dev_err(dev, "suspend hook failed, error = %d\n", ret);
+		sdhci_resume_host(host);
+	}
+
+	return ret;
 }
+
+#if defined(CONFIG_MMC_RTPM)
+static int sdhci_runtime_resume(struct device *dev);
+#endif
 
 static int sdhci_pltfm_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+	int ret = 0;
 
-	return sdhci_resume_host(host);
+#if defined(CONFIG_MMC_RTPM)
+	/* enable SDMMC clock during resume */
+	ret = sdhci_runtime_resume(dev);
+	if (ret)
+		dev_err(dev, "sdhci runtime resume failed, error = %d\n", ret);
+#endif
+
+	if (host->ops && host->ops->resume)
+		ret = host->ops->resume(host);
+	if (ret) {
+		dev_err(dev, "resume hook failed, error = %d\n", ret);
+		return ret;
+	}
+
+	ret = sdhci_resume_host(host);
+	if (ret)
+		dev_err(dev, "resume failed, error = %d\n", ret);
+
+	return ret;
 }
+
+#if defined(CONFIG_MMC_RTPM)
+
+static int sdhci_runtime_suspend(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+
+	return sdhci_runtime_suspend_host(host);
+
+}
+
+static int sdhci_runtime_resume(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+
+	return sdhci_runtime_resume_host(host);
+
+}
+
+static int sdhci_runtime_idle(struct device *dev)
+{
+	return 0;
+}
+
+#else
+
+#define sdhci_runtime_suspend	NULL
+#define sdhci_runtime_resume	NULL
+#define sdhci_runtime_idle	NULL
+
+#endif
+
 
 const struct dev_pm_ops sdhci_pltfm_pmops = {
 	.suspend	= sdhci_pltfm_suspend,
 	.resume		= sdhci_pltfm_resume,
+	.runtime_suspend	= sdhci_runtime_suspend,
+	.runtime_resume		= sdhci_runtime_resume,
+	.runtime_idle		= sdhci_runtime_idle,
 };
 EXPORT_SYMBOL_GPL(sdhci_pltfm_pmops);
 #endif	/* CONFIG_PM */

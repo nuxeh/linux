@@ -16,12 +16,72 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 
+static void of_get_regulator_consumer_list(struct device *dev,
+		struct device_node *np,
+		struct regulator_consumer_supply **consumer_list,
+		int *num_consumer)
+{
+	struct device_node *np_consumer;
+	struct device_node *child;
+	int n_consumer;
+	struct regulator_consumer_supply *consumer;
+	int ncount;
+	int ret;
+
+	*consumer_list = NULL;
+	*num_consumer = 0;
+
+	np_consumer = of_get_child_by_name(np, "consumers");
+	if (!np_consumer)
+		return;
+
+	n_consumer = of_get_child_count(np_consumer);
+	if (!n_consumer)
+		return;
+
+	consumer = devm_kzalloc(dev, n_consumer * sizeof(*consumer),
+			GFP_KERNEL);
+	if (!consumer) {
+		dev_err(dev, "Memory allocation failed\n");
+		return;
+	}
+
+	ncount = 0;
+	for_each_child_of_node(np_consumer, child) {
+		/* Ignore the consumer if it is disabled. */
+		ret = of_device_is_available(child);
+		if (!ret)
+			continue;
+
+		ret = of_property_read_string(child,
+				"regulator-consumer-supply",
+				&consumer[ncount].supply);
+		if (ret < 0) {
+			dev_err(dev, "Consumer %s does not have supply\n",
+				child->name);
+			continue;
+		}
+		ret = of_property_read_string(child,
+				"regulator-consumer-device",
+				&consumer[ncount].dev_name);
+		if (ret < 0)
+			dev_info(dev, "Consumer %s does not have device name\n",
+					child->name);
+		ncount++;
+	}
+	*consumer_list = consumer;
+	*num_consumer = ncount;
+}
+
 static void of_get_regulation_constraints(struct device_node *np,
 					struct regulator_init_data **init_data)
 {
 	const __be32 *min_uV, *max_uV, *uV_offset;
 	const __be32 *min_uA, *max_uA, *ramp_delay;
+	const __be32 *init_uV;
 	struct regulation_constraints *constraints = &(*init_data)->constraints;
+	int ret;
+	u32 pval;
 
 	constraints->name = of_get_property(np, "regulator-name", NULL);
 
@@ -31,6 +91,9 @@ static void of_get_regulation_constraints(struct device_node *np,
 	max_uV = of_get_property(np, "regulator-max-microvolt", NULL);
 	if (max_uV)
 		constraints->max_uV = be32_to_cpu(*max_uV);
+	init_uV = of_get_property(np, "regulator-init-microvolt", NULL);
+	if (init_uV)
+		constraints->init_uV = be32_to_cpu(*init_uV);
 
 	/* Voltage change possible? */
 	if (constraints->min_uV != constraints->max_uV)
@@ -56,14 +119,50 @@ static void of_get_regulation_constraints(struct device_node *np,
 	if (of_find_property(np, "regulator-boot-on", NULL))
 		constraints->boot_on = true;
 
+	if (of_find_property(np, "regulator-boot-off", NULL))
+		constraints->boot_off = true;
+
 	if (of_find_property(np, "regulator-always-on", NULL))
 		constraints->always_on = true;
 	else /* status change should be possible if not always on. */
 		constraints->valid_ops_mask |= REGULATOR_CHANGE_STATUS;
 
+	if (constraints->always_on)
+		constraints->disable_on_suspend = of_property_read_bool(np,
+					"regulator-disable-on-suspend");
+
+	constraints->disable_on_shutdown = of_property_read_bool(np,
+					"regulator-disable-on-shutdown");
+
+	if (of_find_property(np, "regulator-bypass-on", NULL))
+		constraints->bypass_on = true;
+
 	ramp_delay = of_get_property(np, "regulator-ramp-delay", NULL);
 	if (ramp_delay)
 		constraints->ramp_delay = be32_to_cpu(*ramp_delay);
+
+	ret = of_property_read_u32(np, "regulator-ramp-delay-scale", &pval);
+	if (!ret)
+		constraints->ramp_delay_scale = pval;
+
+	ret = of_property_read_u32(np, "regulator-enable-ramp-delay", &pval);
+	if (!ret)
+		constraints->enable_time = pval;
+
+	ret = of_property_read_u32(np, "regulator-disable-ramp-delay", &pval);
+	if (!ret)
+		constraints->disable_time = pval;
+
+	ret = of_property_read_u32(np, "regulator-init-mode", &pval);
+	if (!ret)
+		constraints->initial_mode = pval;
+
+	ret = of_property_read_u32(np, "regulator-sleep-mode", &pval);
+	if (!ret)
+		constraints->sleep_mode = pval;
+
+	if (of_find_property(np, "regulator-disable-parent-after-enable", NULL))
+		constraints->disable_parent_after_enable = true;
 }
 
 /**
@@ -87,6 +186,10 @@ struct regulator_init_data *of_get_regulator_init_data(struct device *dev,
 		return NULL; /* Out of memory? */
 
 	of_get_regulation_constraints(node, &init_data);
+	of_get_regulator_consumer_list(dev, node, &init_data->consumer_supplies,
+					&init_data->num_consumer_supplies);
+	dev_dbg(dev, "Adding %d consumers for node %s\n",
+			init_data->num_consumer_supplies, node->name);
 	return init_data;
 }
 EXPORT_SYMBOL_GPL(of_get_regulator_init_data);
@@ -127,6 +230,8 @@ int of_regulator_match(struct device *dev, struct device_node *node,
 	}
 
 	for_each_child_of_node(node, child) {
+		if (!of_device_is_available(child))
+			continue;
 		name = of_get_property(child,
 					"regulator-compatible", NULL);
 		if (!name)

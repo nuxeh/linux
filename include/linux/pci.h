@@ -433,6 +433,7 @@ struct pci_bus {
 	struct resource busn_res;	/* bus numbers routed to this bus */
 
 	struct pci_ops	*ops;		/* configuration access functions */
+	struct msi_chip	*msi;		/* MSI controller */
 	void		*sysdata;	/* hook for sys-specific extension */
 	struct proc_dir_entry *procdir;	/* directory entry in /proc/bus/pci */
 
@@ -462,6 +463,15 @@ struct pci_bus {
 static inline bool pci_is_root_bus(struct pci_bus *pbus)
 {
 	return !(pbus->parent);
+}
+
+static inline struct pci_dev *pci_upstream_bridge(struct pci_dev *dev)
+{
+	dev = pci_physfn(dev);
+	if (pci_is_root_bus(dev->bus))
+		return NULL;
+
+	return dev->bus->self;
 }
 
 #ifdef CONFIG_PCI_MSI
@@ -675,7 +685,7 @@ struct pci_driver {
 /* these external functions are only available when PCI support is enabled */
 #ifdef CONFIG_PCI
 
-void pcie_bus_configure_settings(struct pci_bus *bus, u8 smpss);
+void pcie_bus_configure_settings(struct pci_bus *bus);
 
 enum pcie_bus_config_types {
 	PCIE_BUS_TUNE_OFF,
@@ -1873,6 +1883,10 @@ static inline struct eeh_dev *pci_dev_to_eeh_dev(struct pci_dev *pdev)
 	return pdev->dev.archdata.edev;
 }
 #endif
+
+int pci_for_each_dma_alias(struct pci_dev *pdev,
+			   int (*fn)(struct pci_dev *pdev,
+				     u16 alias, void *data), void *data);
 
 /**
  * pci_find_upstream_pcie_bridge - find upstream PCIe-to-PCI bridge of a device

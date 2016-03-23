@@ -59,6 +59,11 @@ struct device;
 
 #ifdef CONFIG_CMA
 
+struct dma_contiguous_stats {
+	phys_addr_t base;
+	size_t size;
+};
+
 /*
  * There is always at least global CMA area and a few optional device
  * private areas configured in kernel .config.
@@ -73,10 +78,19 @@ int dma_declare_contiguous(struct device *dev, phys_addr_t size,
 
 struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 				       unsigned int order);
+struct page *dma_alloc_at_from_contiguous(struct device *dev, int count,
+				       unsigned int order, phys_addr_t at_addr,
+				       bool map_non_cached);
 bool dma_release_from_contiguous(struct device *dev, struct page *pages,
 				 int count);
+int dma_get_contiguous_stats(struct device *dev,
+			struct dma_contiguous_stats *stats);
 
+bool dma_contiguous_should_replace_page(struct page *page);
+int dma_contiguous_enable_replace_pages(struct device *dev);
 #else
+
+struct dma_contiguous_stats;
 
 #define MAX_CMA_AREAS	(0)
 
@@ -87,6 +101,14 @@ int dma_declare_contiguous(struct device *dev, phys_addr_t size,
 			   phys_addr_t base, phys_addr_t limit)
 {
 	return -ENOSYS;
+}
+
+static inline
+struct page *dma_alloc_at_from_contiguous(struct device *dev, int count,
+				       unsigned int order, phys_addr_t at_addr,
+				       bool map_non_cached)
+{
+	return NULL;
 }
 
 static inline
@@ -103,6 +125,24 @@ bool dma_release_from_contiguous(struct device *dev, struct page *pages,
 	return false;
 }
 
+static inline
+int dma_get_contiguous_stats(struct device *dev,
+			struct dma_contiguous_stats *stats)
+{
+	return -ENOSYS;
+}
+
+static inline
+bool dma_contiguous_should_replace_page(struct page *page)
+{
+	return false;
+}
+
+static inline
+int dma_contiguous_enable_replace_pages(struct device *dev)
+{
+	return 0;
+}
 #endif
 
 #endif

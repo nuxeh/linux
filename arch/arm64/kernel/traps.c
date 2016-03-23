@@ -3,6 +3,7 @@
  *
  * Copyright (C) 1995-2009 Russell King
  * Copyright (C) 2012 ARM Ltd.
+ * Copyright (c) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -32,6 +33,7 @@
 #include <linux/syscalls.h>
 
 #include <asm/atomic.h>
+#include <asm/debug-monitors.h>
 #include <asm/traps.h>
 #include <asm/stacktrace.h>
 #include <asm/exception.h>
@@ -256,17 +258,58 @@ void arm64_notify_die(const char *str, struct pt_regs *regs,
 		die(str, regs, err);
 }
 
+static LIST_HEAD(undef_hook);
+
+void register_undef_hook(struct undef_hook *hook)
+{
+	list_add(&hook->node, &undef_hook);
+}
+
+static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
+{
+	struct undef_hook *hook;
+	int (*fn)(struct pt_regs *regs, unsigned int instr) = NULL;
+
+	list_for_each_entry(hook, &undef_hook, node)
+		if ((instr & hook->instr_mask) == hook->instr_val &&
+		    (regs->pstate & hook->pstate_mask) == hook->pstate_val)
+			fn = hook->fn;
+
+	return fn ? fn(regs, instr) : 1;
+}
+
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
+	u32 instr;
 	siginfo_t info;
 	void __user *pc = (void __user *)instruction_pointer(regs);
 
-#ifdef CONFIG_COMPAT
 	/* check for AArch32 breakpoint instructions */
-	if (compat_user_mode(regs) && aarch32_break_trap(regs) == 0)
+	if (!aarch32_break_handler(regs))
 		return;
-#endif
+	if (user_mode(regs)) {
+		if (compat_thumb_mode(regs)) {
+			if (get_user(instr, (u16 __user *)pc))
+				goto die_sig;
+			if (is_wide_instruction(instr)) {
+				u32 instr2;
+				if (get_user(instr2, (u16 __user *)pc+1))
+					goto die_sig;
+				instr <<= 16;
+				instr |= instr2;
+			}
+		} else if (get_user(instr, (u32 __user *)pc)) {
+			goto die_sig;
+		}
+	} else {
+		/* kernel mode */
+		instr = *((u32 *)pc);
+	}
 
+	if (call_undef_hook(regs, instr) == 0)
+		return;
+
+die_sig:
 	if (show_unhandled_signals && unhandled_signal(current, SIGILL) &&
 	    printk_ratelimit()) {
 		pr_info("%s[%d]: undefined instruction: pc=%p\n",
@@ -306,14 +349,128 @@ asmlinkage long do_ni_syscall(struct pt_regs *regs)
 	return sys_ni_syscall();
 }
 
+#ifdef CONFIG_DENVER_CPU
+/*
+ * MCA assert register dump
+*/
+void dump_mca_debug(void)
+{
+	unsigned long cap;
+
+	unsigned long serri_ctrl, serri_status, serri_addr,
+		serri_misc1, serri_misc2;
+
+	pr_crit("Machine Check Architecture assert failed:\n");
+
+	asm volatile("mrs %0, s3_0_c15_c3_0" : "=r" (cap) : );
+	cap = cap & 0xff;
+
+	switch(cap)
+	{
+	case 11:
+		asm volatile("mrs %0, s3_0_c15_c11_4" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c11_5" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c11_6" : "=r" (serri_addr) : );
+		pr_crit("[Bank 10] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 10:
+		asm volatile("mrs %0, s3_0_c15_c10_6" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c10_7" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c11_0" : "=r" (serri_addr) : );
+		pr_crit("[Bank 9] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 9:
+		asm volatile("mrs %0, s3_0_c15_c10_0" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c10_1" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c10_2" : "=r" (serri_addr) : );
+		pr_crit("[Bank 8] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 8:
+		asm volatile("mrs %0, s3_0_c15_c9_2" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c9_3" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c9_4" : "=r" (serri_addr) : );
+		pr_crit("[Bank 7] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 7:
+		asm volatile("mrs %0, s3_0_c15_c8_4" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c8_5" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c8_6" : "=r" (serri_addr) : );
+		asm volatile("mrs %0, s3_0_c15_c8_7" : "=r" (serri_misc1) : );
+		asm volatile("mrs %0, s3_0_c15_c9_0" : "=r" (serri_misc2) : );
+		pr_crit("[Bank 6] ctrl:0x%016lx status:0x%016lx addr:0x%016lx \
+misc1:0x%016lx, misc2:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr, serri_misc1, serri_misc2);
+	case 6:
+		asm volatile("mrs %0, s3_0_c15_c7_6" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c7_7" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c8_0" : "=r" (serri_addr) : );
+		pr_crit("[Bank 5] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 5:
+		asm volatile("mrs %0, s3_0_c15_c7_0" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c7_1" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c7_2" : "=r" (serri_addr) : );
+		pr_crit("[Bank 4] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 4:
+		asm volatile("mrs %0, s3_0_c15_c6_2" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c6_3" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c6_4" : "=r" (serri_addr) : );
+		pr_crit("[Bank 3] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 3:
+		asm volatile("mrs %0, s3_0_c15_c5_4" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c5_5" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c5_6" : "=r" (serri_addr) : );
+		pr_crit("[Bank 2] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 2:
+		asm volatile("mrs %0, s3_0_c15_c4_6" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c4_7" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c5_0" : "=r" (serri_addr) : );
+		pr_crit("[Bank 1] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+	case 1:
+		asm volatile("mrs %0, s3_0_c15_c4_0" : "=r" (serri_ctrl) : );
+		asm volatile("mrs %0, s3_0_c15_c4_1" : "=r" (serri_status) : );
+		asm volatile("mrs %0, s3_0_c15_c4_2" : "=r" (serri_addr) : );
+		pr_crit("[Bank 0] ctrl:0x%016lx status:0x%016lx addr:0x%016lx\n",
+			serri_ctrl, serri_status, serri_addr);
+		break;
+	default:
+		if(!cap)
+			pr_crit("no MCA banks implemented\n");
+		else
+			pr_crit("unknown MCA bank configuration\n");
+		break;
+	}
+
+	return;
+}
+#endif /* CONFIG_DENVER_CPU */
+
 /*
  * bad_mode handles the impossible case in the exception vector.
  */
 asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 {
 	siginfo_t info;
+#ifdef CONFIG_DENVER_CPU
+	unsigned long serr_status;
+#endif
 	void __user *pc = (void __user *)instruction_pointer(regs);
 	console_verbose();
+
+#ifdef CONFIG_DENVER_CPU
+	/* check for MCA assert */
+	asm volatile("mrs %0, s3_0_c15_c3_1" : "=r" (serr_status));
+	if(serr_status & 4)
+	{
+		serr_status = 0;
+		asm volatile("msr s3_0_c15_c3_1, %0" : : "r" (serr_status));
+		dump_mca_debug();
+	}
+#endif
 
 	pr_crit("Bad mode in %s handler detected, code 0x%08x\n",
 		handler[reason], esr);

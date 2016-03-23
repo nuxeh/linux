@@ -22,10 +22,12 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/types.h>
+#include <linux/scatterlist.h>
 
-#define IOMMU_READ	(1)
-#define IOMMU_WRITE	(2)
-#define IOMMU_CACHE	(4) /* DMA cache coherency */
+#define IOMMU_READ	(1 << 0)
+#define IOMMU_WRITE	(1 << 1)
+#define IOMMU_CACHE	(1 << 2) /* DMA cache coherency */
+#define IOMMU_EXEC	(1 << 3)
 
 struct iommu_ops;
 struct iommu_group;
@@ -55,8 +57,11 @@ struct iommu_domain {
 	struct iommu_domain_geometry geometry;
 };
 
-#define IOMMU_CAP_CACHE_COHERENCY	0x1
-#define IOMMU_CAP_INTR_REMAP		0x2	/* isolates device intrs */
+enum iommu_cap {
+	IOMMU_CAP_CACHE_COHERENCY,	/* IOMMU can enforce cache coherent DMA
+					   transactions */
+	IOMMU_CAP_INTR_REMAP,		/* IOMMU supports interrupt isolation */
+};
 
 enum iommu_attr {
 	DOMAIN_ATTR_GEOMETRY,
@@ -76,7 +81,6 @@ enum iommu_attr {
  * @map: map a physically contiguous memory region to an iommu domain
  * @unmap: unmap a physically contiguous memory region from an iommu domain
  * @iova_to_phys: translate iova to physical address
- * @domain_has_cap: domain capabilities query
  * @add_device: add device to iommu grouping
  * @remove_device: remove device from iommu grouping
  * @domain_get_attr: Query domain attributes
@@ -84,19 +88,24 @@ enum iommu_attr {
  * @pgsize_bitmap: bitmap of supported page sizes
  */
 struct iommu_ops {
+	bool (*capable)(enum iommu_cap);
 	int (*domain_init)(struct iommu_domain *domain);
 	void (*domain_destroy)(struct iommu_domain *domain);
 	int (*attach_dev)(struct iommu_domain *domain, struct device *dev);
 	void (*detach_dev)(struct iommu_domain *domain, struct device *dev);
 	int (*map)(struct iommu_domain *domain, unsigned long iova,
-		   phys_addr_t paddr, size_t size, int prot);
+		   phys_addr_t paddr, size_t size, unsigned long prot);
+	int (*map_pages)(struct iommu_domain *domain, unsigned long iova,
+		    struct page **pages, size_t count, unsigned long prot);
+	int (*map_sg)(struct iommu_domain *domain, unsigned long iova,
+		    struct scatterlist *sgl, int nents, unsigned long prot);
 	size_t (*unmap)(struct iommu_domain *domain, unsigned long iova,
 		     size_t size);
 	phys_addr_t (*iova_to_phys)(struct iommu_domain *domain, dma_addr_t iova);
-	int (*domain_has_cap)(struct iommu_domain *domain,
-			      unsigned long cap);
 	int (*add_device)(struct device *dev);
 	void (*remove_device)(struct device *dev);
+	int (*bound_driver)(struct device *dev);
+	void (*unbind_driver)(struct device *dev);
 	int (*device_group)(struct device *dev, unsigned int *groupid);
 	int (*domain_get_attr)(struct iommu_domain *domain,
 			       enum iommu_attr attr, void *data);
@@ -124,6 +133,7 @@ struct iommu_ops {
 
 extern int bus_set_iommu(struct bus_type *bus, struct iommu_ops *ops);
 extern bool iommu_present(struct bus_type *bus);
+extern bool iommu_capable(struct bus_type *bus, enum iommu_cap cap);
 extern struct iommu_domain *iommu_domain_alloc(struct bus_type *bus);
 extern struct iommu_group *iommu_group_get_by_id(int id);
 extern void iommu_domain_free(struct iommu_domain *domain);
@@ -132,12 +142,14 @@ extern int iommu_attach_device(struct iommu_domain *domain,
 extern void iommu_detach_device(struct iommu_domain *domain,
 				struct device *dev);
 extern int iommu_map(struct iommu_domain *domain, unsigned long iova,
-		     phys_addr_t paddr, size_t size, int prot);
+		     phys_addr_t paddr, size_t size, unsigned long prot);
+extern int iommu_map_pages(struct iommu_domain *domain, unsigned long iova,
+		    struct page **pages, size_t count, unsigned long prot);
+extern int iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
+			struct scatterlist *sgl, int nents, unsigned long prot);
 extern size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova,
 		       size_t size);
 extern phys_addr_t iommu_iova_to_phys(struct iommu_domain *domain, dma_addr_t iova);
-extern int iommu_domain_has_cap(struct iommu_domain *domain,
-				unsigned long cap);
 extern void iommu_set_fault_handler(struct iommu_domain *domain,
 			iommu_fault_handler_t handler, void *token);
 
@@ -145,6 +157,7 @@ extern int iommu_attach_group(struct iommu_domain *domain,
 			      struct iommu_group *group);
 extern void iommu_detach_group(struct iommu_domain *domain,
 			       struct iommu_group *group);
+extern phys_addr_t iommu_iova_to_phys(struct iommu_domain *domain, dma_addr_t iova);
 extern struct iommu_group *iommu_group_alloc(void);
 extern void *iommu_group_get_iommudata(struct iommu_group *group);
 extern void iommu_group_set_iommudata(struct iommu_group *group,
@@ -224,6 +237,11 @@ static inline bool iommu_present(struct bus_type *bus)
 	return false;
 }
 
+static inline bool iommu_capable(struct bus_type *bus, enum iommu_cap cap)
+{
+	return false;
+}
+
 static inline struct iommu_domain *iommu_domain_alloc(struct bus_type *bus)
 {
 	return NULL;
@@ -245,7 +263,7 @@ static inline void iommu_detach_device(struct iommu_domain *domain,
 }
 
 static inline int iommu_map(struct iommu_domain *domain, unsigned long iova,
-			    phys_addr_t paddr, int gfp_order, int prot)
+			    phys_addr_t paddr, int gfp_order, unsigned long prot)
 {
 	return -ENODEV;
 }
@@ -269,12 +287,6 @@ static inline void iommu_domain_window_disable(struct iommu_domain *domain,
 }
 
 static inline phys_addr_t iommu_iova_to_phys(struct iommu_domain *domain, dma_addr_t iova)
-{
-	return 0;
-}
-
-static inline int domain_has_cap(struct iommu_domain *domain,
-				 unsigned long cap)
 {
 	return 0;
 }

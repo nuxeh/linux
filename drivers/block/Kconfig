@@ -105,6 +105,8 @@ source "drivers/block/paride/Kconfig"
 
 source "drivers/block/mtip32xx/Kconfig"
 
+source "drivers/block/zram/Kconfig"
+
 config BLK_CPQ_DA
 	tristate "Compaq SMART2 support"
 	depends on PCI && VIRT_TO_BUS
@@ -540,5 +542,10 @@ config BLK_DEV_RSXX
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called rsxx.
+
+config TEGRA_HV_BLKDEV
+	bool "Tegra Virtual Block I/O Device"
+	depends on BLK_DEV && TEGRA_HV_MANAGER
+	default n
 
 endif # BLK_DEV

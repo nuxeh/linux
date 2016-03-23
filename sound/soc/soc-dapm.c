@@ -215,12 +215,16 @@ static void dapm_reset(struct snd_soc_card *card)
 	}
 }
 
-static int soc_widget_read(struct snd_soc_dapm_widget *w, int reg)
+static int soc_widget_read(struct snd_soc_dapm_widget *w, int reg,
+	unsigned int *val)
 {
-	if (w->codec)
-		return snd_soc_read(w->codec, reg);
-	else if (w->platform)
-		return snd_soc_platform_read(w->platform, reg);
+	if (w->codec) {
+		*val = snd_soc_read(w->codec, reg);
+		return 0;
+	} else if (w->platform) {
+		*val = snd_soc_platform_read(w->platform, reg);
+		return 0;
+	}
 
 	dev_err(w->dapm->dev, "ASoC: no valid widget read method\n");
 	return -1;
@@ -267,13 +271,12 @@ static int soc_widget_update_bits_locked(struct snd_soc_dapm_widget *w,
 			return ret;
 	} else {
 		soc_widget_lock(w);
-		ret = soc_widget_read(w, reg);
+		ret = soc_widget_read(w, reg, &old);
 		if (ret < 0) {
 			soc_widget_unlock(w);
 			return ret;
 		}
 
-		old = ret;
 		new = (old & ~mask) | (value & mask);
 		change = old != new;
 		if (change) {
@@ -349,7 +352,7 @@ static void dapm_set_path_status(struct snd_soc_dapm_widget *w,
 		unsigned int mask = (1 << fls(max)) - 1;
 		unsigned int invert = mc->invert;
 
-		val = soc_widget_read(w, reg);
+		soc_widget_read(w, reg, &val);
 		val = (val >> shift) & mask;
 		if (invert)
 			val = max - val;
@@ -362,7 +365,7 @@ static void dapm_set_path_status(struct snd_soc_dapm_widget *w,
 			w->kcontrol_news[i].private_value;
 		int val, item;
 
-		val = soc_widget_read(w, e->reg);
+		soc_widget_read(w, e->reg, &val);
 		item = (val >> e->shift_l) & e->mask;
 
 		p->connect = 0;
@@ -392,7 +395,7 @@ static void dapm_set_path_status(struct snd_soc_dapm_widget *w,
 			w->kcontrol_news[i].private_value;
 		int val, item;
 
-		val = soc_widget_read(w, e->reg);
+		soc_widget_read(w, e->reg, &val);
 		val = (val >> e->shift_l) & e->mask;
 		for (item = 0; item < e->max; item++) {
 			if (val == e->values[item])
@@ -1491,12 +1494,17 @@ static void dapm_pre_sequence_async(void *data, async_cookie_t cookie)
 	struct snd_soc_dapm_context *d = data;
 	int ret;
 
+	if ((d->bias_level == SND_SOC_BIAS_OFF &&
+	     d->target_bias_level != SND_SOC_BIAS_OFF) ||
+	    (d->bias_level == SND_SOC_BIAS_STANDBY &&
+	     d->target_bias_level == SND_SOC_BIAS_OFF)) {
+		if (d->dev)
+			pm_runtime_get_sync(d->dev);
+	}
+
 	/* If we're off and we're not supposed to be go into STANDBY */
 	if (d->bias_level == SND_SOC_BIAS_OFF &&
 	    d->target_bias_level != SND_SOC_BIAS_OFF) {
-		if (d->dev)
-			pm_runtime_get_sync(d->dev);
-
 		ret = snd_soc_dapm_set_bias_level(d, SND_SOC_BIAS_STANDBY);
 		if (ret != 0)
 			dev_err(d->dev,
@@ -2200,7 +2208,8 @@ int snd_soc_dapm_sync(struct snd_soc_dapm_context *dapm)
 EXPORT_SYMBOL_GPL(snd_soc_dapm_sync);
 
 static int snd_soc_dapm_add_route(struct snd_soc_dapm_context *dapm,
-				  const struct snd_soc_dapm_route *route)
+				  const struct snd_soc_dapm_route *route,
+				  unsigned int prefixed)
 {
 	struct snd_soc_dapm_path *path;
 	struct snd_soc_dapm_widget *wsource = NULL, *wsink = NULL, *w;
@@ -2212,7 +2221,7 @@ static int snd_soc_dapm_add_route(struct snd_soc_dapm_context *dapm,
 	char prefixed_source[80];
 	int ret = 0;
 
-	if (dapm->codec && dapm->codec->name_prefix) {
+	if (dapm->codec && dapm->codec->name_prefix && !prefixed) {
 		snprintf(prefixed_sink, sizeof(prefixed_sink), "%s %s",
 			 dapm->codec->name_prefix, route->sink);
 		sink = prefixed_sink;
@@ -2431,7 +2440,7 @@ int snd_soc_dapm_add_routes(struct snd_soc_dapm_context *dapm,
 
 	mutex_lock_nested(&dapm->card->dapm_mutex, SND_SOC_DAPM_CLASS_INIT);
 	for (i = 0; i < num; i++) {
-		r = snd_soc_dapm_add_route(dapm, route);
+		r = snd_soc_dapm_add_route(dapm, route, false);
 		if (r < 0) {
 			dev_err(dapm->dev, "ASoC: Failed to add route %s -> %s -> %s\n",
 				route->source,
@@ -2602,7 +2611,7 @@ int snd_soc_dapm_new_widgets(struct snd_soc_dapm_context *dapm)
 
 		/* Read the initial power state from the device */
 		if (w->reg >= 0) {
-			val = soc_widget_read(w, w->reg);
+			soc_widget_read(w, w->reg, &val);
 			val &= 1 << w->shift;
 			if (w->invert)
 				val = !val;
@@ -3212,7 +3221,7 @@ static int snd_soc_dai_link_event(struct snd_soc_dapm_widget *w,
 	struct snd_pcm_substream substream;
 	struct snd_pcm_hw_params *params = NULL;
 	u64 fmt;
-	int ret;
+	int ret = 0;
 
 	BUG_ON(!config);
 	BUG_ON(list_empty(&w->sources) || list_empty(&w->sinks));
@@ -3368,6 +3377,11 @@ int snd_soc_dapm_new_dai_widgets(struct snd_soc_dapm_context *dapm,
 	memset(&template, 0, sizeof(template));
 	template.reg = SND_SOC_NOPM;
 
+	/* DAIs can belong to codecs and platform component devices so check
+	   that we have not been created already with component */
+	if (dai->playback_widget || dai->capture_widget)
+		return 0;
+
 	if (dai->driver->playback.stream_name) {
 		template.id = snd_soc_dapm_dai_in;
 		template.name = dai->driver->playback.stream_name;
@@ -3451,7 +3465,7 @@ int snd_soc_dapm_link_dai_widgets(struct snd_soc_card *card)
 				dev_dbg(dai->dev, "%s -> %s\n",
 					 r.source, r.sink);
 
-				snd_soc_dapm_add_route(w->dapm, &r);
+				snd_soc_dapm_add_route(w->dapm, &r, true);
 			}
 
 			if (dai->driver->capture.stream_name &&
@@ -3462,7 +3476,7 @@ int snd_soc_dapm_link_dai_widgets(struct snd_soc_card *card)
 				dev_dbg(dai->dev, "%s -> %s\n",
 					r.source, r.sink);
 
-				snd_soc_dapm_add_route(w->dapm, &r);
+				snd_soc_dapm_add_route(w->dapm, &r, true);
 			}
 		}
 	}

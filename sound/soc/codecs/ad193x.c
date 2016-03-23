@@ -2,6 +2,7 @@
  * AD193X Audio Codec driver supporting AD1936/7/8/9
  *
  * Copyright 2010 Analog Devices Inc.
+ * Copyright (C) 2014 NVIDIA Corporation. All rights reserved.
  *
  * Licensed under the GPL-2 or later.
  */
@@ -13,6 +14,8 @@
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
 #include <linux/slab.h>
+#include <linux/pm_runtime.h>
+#include <linux/regmap.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -73,11 +76,13 @@ static const struct snd_kcontrol_new ad193x_snd_controls[] = {
 };
 
 static const struct snd_soc_dapm_widget ad193x_dapm_widgets[] = {
-	SND_SOC_DAPM_DAC("DAC", "Playback", AD193X_DAC_CTRL0, 0, 1),
+	SND_SOC_DAPM_DAC("DAC", "Playback", SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_PGA("DAC Output", AD193X_DAC_CTRL0, 0, 1, NULL, 0),
 	SND_SOC_DAPM_ADC("ADC", "Capture", SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_SUPPLY("PLL_PWR", AD193X_PLL_CLK_CTRL0, 0, 1, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("ADC_PWR", AD193X_ADC_CTRL0, 0, 1, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("SYSCLK", AD193X_PLL_CLK_CTRL0, 7, 0, NULL, 0),
+	SND_SOC_DAPM_VMID("VMID"),
 	SND_SOC_DAPM_OUTPUT("DAC1OUT"),
 	SND_SOC_DAPM_OUTPUT("DAC2OUT"),
 	SND_SOC_DAPM_OUTPUT("DAC3OUT"),
@@ -88,13 +93,15 @@ static const struct snd_soc_dapm_widget ad193x_dapm_widgets[] = {
 
 static const struct snd_soc_dapm_route audio_paths[] = {
 	{ "DAC", NULL, "SYSCLK" },
+	{ "DAC Output", NULL, "DAC" },
+	{ "DAC Output", NULL, "VMID" },
 	{ "ADC", NULL, "SYSCLK" },
 	{ "DAC", NULL, "ADC_PWR" },
 	{ "ADC", NULL, "ADC_PWR" },
-	{ "DAC1OUT", NULL, "DAC" },
-	{ "DAC2OUT", NULL, "DAC" },
-	{ "DAC3OUT", NULL, "DAC" },
-	{ "DAC4OUT", NULL, "DAC" },
+	{ "DAC1OUT", NULL, "DAC Output" },
+	{ "DAC2OUT", NULL, "DAC Output" },
+	{ "DAC3OUT", NULL, "DAC Output" },
+	{ "DAC4OUT", NULL, "DAC Output" },
 	{ "ADC", NULL, "ADC1IN" },
 	{ "ADC", NULL, "ADC2IN" },
 	{ "SYSCLK", NULL, "PLL_PWR" },
@@ -230,9 +237,15 @@ static int ad193x_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct ad193x_priv *ad193x = snd_soc_codec_get_drvdata(codec);
 	switch (freq) {
+	case 8192000:
+	case 11289600:
 	case 12288000:
+	case 16934400:
+	case 16384000:
 	case 18432000:
+	case 22579200:
 	case 24576000:
+	case 33868800:
 	case 36864000:
 		ad193x->sysclk = freq;
 		return 0;
@@ -263,15 +276,21 @@ static int ad193x_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	switch (ad193x->sysclk) {
+	case 8192000:
+	case 11289600:
 	case 12288000:
 		master_rate = AD193X_PLL_INPUT_256;
 		break;
+	case 16934400:
 	case 18432000:
 		master_rate = AD193X_PLL_INPUT_384;
 		break;
+	case 16384000:
+	case 22579200:
 	case 24576000:
 		master_rate = AD193X_PLL_INPUT_512;
 		break;
+	case 33868800:
 	case 36864000:
 		master_rate = AD193X_PLL_INPUT_768;
 		break;
@@ -304,7 +323,7 @@ static struct snd_soc_dai_driver ad193x_dai = {
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 2,
-		.channels_max = 8,
+		.channels_max = 16,
 		.rates = SNDRV_PCM_RATE_48000,
 		.formats = SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S16_LE |
 			SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE,
@@ -312,7 +331,7 @@ static struct snd_soc_dai_driver ad193x_dai = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 2,
-		.channels_max = 4,
+		.channels_max = 16,
 		.rates = SNDRV_PCM_RATE_48000,
 		.formats = SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S16_LE |
 			SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE,
@@ -366,6 +385,13 @@ static bool adau193x_reg_volatile(struct device *dev, unsigned int reg)
 	return false;
 }
 
+static const struct of_device_id ad193x_of_match[] = {
+	{ .compatible = "ad,ad1936", },
+	{ .compatible = "ad,ad1937", },
+	{ }
+};
+
+MODULE_DEVICE_TABLE(of, ad193x_of_match);
 #if defined(CONFIG_SPI_MASTER)
 
 static const struct regmap_config ad193x_spi_regmap_config = {
@@ -407,6 +433,7 @@ static struct spi_driver ad193x_spi_driver = {
 	.driver = {
 		.name	= "ad193x",
 		.owner	= THIS_MODULE,
+		.of_match_table = ad193x_of_match,
 	},
 	.probe		= ad193x_spi_probe,
 	.remove		= ad193x_spi_remove,
@@ -421,6 +448,7 @@ static const struct regmap_config ad193x_i2c_regmap_config = {
 
 	.max_register = AD193X_NUM_REGS - 1,
 	.volatile_reg = adau193x_reg_volatile,
+	.cache_type = REGCACHE_FLAT,
 };
 
 static const struct i2c_device_id ad193x_id[] = {
@@ -429,36 +457,102 @@ static const struct i2c_device_id ad193x_id[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ad193x_id);
+static int ad193x_runtime_suspend(struct device *dev)
+{
+
+	struct ad193x_priv *ad193x = dev_get_drvdata(dev);
+
+	regcache_cache_only(ad193x->regmap, true);
+
+	return 0;
+}
+
+static int ad193x_runtime_resume(struct device *dev)
+{
+	struct ad193x_priv *ad193x = dev_get_drvdata(dev);
+
+	regcache_cache_only(ad193x->regmap, false);
+	regcache_sync(ad193x->regmap);
+
+	return 0;
+}
 
 static int ad193x_i2c_probe(struct i2c_client *client,
 			    const struct i2c_device_id *id)
 {
 	struct ad193x_priv *ad193x;
-
+	int ret = 0;
 	ad193x = devm_kzalloc(&client->dev, sizeof(struct ad193x_priv),
 			      GFP_KERNEL);
 	if (ad193x == NULL)
 		return -ENOMEM;
-
 	ad193x->regmap = devm_regmap_init_i2c(client, &ad193x_i2c_regmap_config);
 	if (IS_ERR(ad193x->regmap))
 		return PTR_ERR(ad193x->regmap);
+	regcache_cache_only(ad193x->regmap, true);
+	pm_runtime_enable(&client->dev);
+	if (!pm_runtime_enabled(&client->dev)) {
+		ret = ad193x_runtime_resume(&client->dev);
+		if (ret)
+			goto err_pm_disable;
+	}
 
 	i2c_set_clientdata(client, ad193x);
 
 	return snd_soc_register_codec(&client->dev, &soc_codec_dev_ad193x,
 			&ad193x_dai, 1);
+
+err_pm_disable:
+	pm_runtime_disable(&client->dev);
+
+	return ret;
+
 }
 
 static int ad193x_i2c_remove(struct i2c_client *client)
 {
 	snd_soc_unregister_codec(&client->dev);
+	pm_runtime_disable(&client->dev);
+	if (!pm_runtime_status_suspended(&client->dev))
+		ad193x_runtime_suspend(&client->dev);
+
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+static int ad193x_suspend(struct device *dev)
+{
+	struct ad193x_priv *ad193x = dev_get_drvdata(dev);
+
+	regcache_cache_only(ad193x->regmap, true);
+	regcache_mark_dirty(ad193x->regmap);
+
+	return 0;
+}
+static int ad193x_resume(struct device *dev)
+{
+	struct ad193x_priv *ad193x = dev_get_drvdata(dev);
+
+	regcache_cache_only(ad193x->regmap, false);
+	regcache_sync(ad193x->regmap);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops ad193x_pm_ops = {
+	SET_RUNTIME_PM_OPS(ad193x_runtime_suspend,
+				ad193x_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(ad193x_suspend,
+				ad193x_resume)
+};
 
 static struct i2c_driver ad193x_i2c_driver = {
 	.driver = {
 		.name = "ad193x",
+		.owner = THIS_MODULE,
+		.of_match_table = ad193x_of_match,
+		.pm = &ad193x_pm_ops,
 	},
 	.probe    = ad193x_i2c_probe,
 	.remove   = ad193x_i2c_remove,

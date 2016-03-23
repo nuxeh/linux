@@ -2,6 +2,7 @@
  * composite.c - infrastructure for Composite USB Gadgets
  *
  * Copyright (C) 2006-2008 David Brownell
+ * Copyright (c) 2013-2015, NVIDIA CORPORATION. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -365,6 +366,7 @@ static int config_buf(struct usb_configuration *config,
 	int				len;
 	struct usb_function		*f;
 	int				status;
+	int				interfaceCount = 0;
 
 	len = USB_COMP_EP0_BUFSIZ - USB_DT_CONFIG_SIZE;
 	/* write the config descriptor */
@@ -376,6 +378,8 @@ static int config_buf(struct usb_configuration *config,
 	c->bConfigurationValue = config->bConfigurationValue;
 	c->iConfiguration = config->iConfiguration;
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
+	if (CONFIG_USB_GADGET_VBUS_DRAW <= USB_SELF_POWER_VBUS_MAX_DRAW)
+		c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
 	c->bMaxPower = encode_bMaxPower(speed, config);
 
 	/* There may be e.g. OTG descriptors */
@@ -403,8 +407,16 @@ static int config_buf(struct usb_configuration *config,
 			descriptors = f->fs_descriptors;
 		}
 
-		if (!descriptors)
+		if (f->hidden || !descriptors || descriptors[0] == NULL) {
+			for (; f != config->interface[interfaceCount];) {
+				interfaceCount++;
+				c->bNumInterfaces--;
+			}
 			continue;
+		}
+		for (; f != config->interface[interfaceCount];)
+			interfaceCount++;
+
 		status = usb_descriptor_fillbuf(next, len,
 			(const struct usb_descriptor_header **) descriptors);
 		if (status < 0)
@@ -528,7 +540,7 @@ static int bos_desc(struct usb_composite_dev *cdev)
 	usb_ext->bLength = USB_DT_USB_EXT_CAP_SIZE;
 	usb_ext->bDescriptorType = USB_DT_DEVICE_CAPABILITY;
 	usb_ext->bDevCapabilityType = USB_CAP_TYPE_EXT;
-	usb_ext->bmAttributes = cpu_to_le32(USB_LPM_SUPPORT);
+	usb_ext->bmAttributes = cpu_to_le32(USB_LPM_SUPPORT | USB_BESL_SUPPORT);
 
 	/*
 	 * The Superspeed USB Capability descriptor shall be implemented by all
@@ -812,7 +824,7 @@ done:
 }
 EXPORT_SYMBOL_GPL(usb_add_config);
 
-static void remove_config(struct usb_composite_dev *cdev,
+static void unbind_config(struct usb_composite_dev *cdev,
 			      struct usb_configuration *config)
 {
 	while (!list_empty(&config->functions)) {
@@ -827,7 +839,6 @@ static void remove_config(struct usb_composite_dev *cdev,
 			/* may free memory for "f" */
 		}
 	}
-	list_del(&config->list);
 	if (config->unbind) {
 		DBG(cdev, "unbind config '%s'/%p\n", config->label, config);
 		config->unbind(config);
@@ -854,9 +865,11 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 	if (cdev->config == config)
 		reset_config(cdev);
 
+	list_del(&config->list);
+
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
-	remove_config(cdev, config);
+	unbind_config(cdev, config);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -1206,6 +1219,18 @@ static void composite_setup_complete(struct usb_ep *ep, struct usb_request *req)
 				req->status, req->actual, req->length);
 }
 
+struct usb_otg_descriptor otg_descriptor = {
+	.bLength =		sizeof(otg_descriptor),
+	.bDescriptorType =	USB_DT_OTG,
+	.bmAttributes =		USB_OTG_SRP | USB_OTG_HNP,
+	.bcdOTG =		0x200, /* revision 2.0 */
+};
+
+const struct usb_descriptor_header *otg_desc[] = {
+	(struct usb_descriptor_header *) &otg_descriptor,
+	NULL,
+};
+
 /*
  * The setup() callback implements all the ep0 functionality that's
  * not handled lower down, in hardware or the hardware driver(like
@@ -1290,6 +1315,10 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				value = bos_desc(cdev);
 				value = min(w_length, (u16) value);
 			}
+			break;
+		case USB_DT_OTG:
+			value = sizeof(struct usb_otg_descriptor);
+			memcpy(req->buf, &otg_descriptor, value);
 			break;
 		}
 		break;
@@ -1456,6 +1485,25 @@ unknown:
 				value = c->setup(c, ctrl);
 		}
 
+		/* If the vendor request is not processed (value < 0),
+		 * call all device registered configure setup callbacks
+		 * to process it.
+		 * This is used to handle the following cases:
+		 * - vendor request is for the device and arrives before
+		 * setconfiguration.
+		 * - Some devices are required to handle vendor request before
+		 * setconfiguration such as MTP, USBNET.
+		 */
+
+		if (value < 0) {
+			struct usb_configuration        *cfg;
+
+			list_for_each_entry(cfg, &cdev->configs, list) {
+			if (cfg && cfg->setup)
+				value = cfg->setup(cfg, ctrl);
+			}
+		}
+
 		goto done;
 	}
 
@@ -1525,7 +1573,8 @@ static void __composite_unbind(struct usb_gadget *gadget, bool unbind_driver)
 		struct usb_configuration	*c;
 		c = list_first_entry(&cdev->configs,
 				struct usb_configuration, list);
-		remove_config(cdev, c);
+		list_del(&c->list);
+		unbind_config(cdev, c);
 	}
 	if (cdev->driver->unbind && unbind_driver)
 		cdev->driver->unbind(cdev);

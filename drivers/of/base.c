@@ -1204,6 +1204,57 @@ int of_parse_phandle_with_args(const struct device_node *np, const char *list_na
 }
 EXPORT_SYMBOL(of_parse_phandle_with_args);
 
+void of_phandle_iter_next(struct of_phandle_iter *iter)
+{
+	struct device_node *dn;
+	int i, count;
+
+	if (!iter->cur || (iter->cur >= iter->end))
+		goto err_out;
+
+	dn = of_find_node_by_phandle(be32_to_cpup(iter->cur++));
+	if (!dn)
+		goto err_out;
+
+	if (iter->cells_name) {
+		if (of_property_read_u32(dn, iter->cells_name, &count))
+			goto err_out;
+	} else {
+		count =  iter->cell_count;
+	}
+
+	iter->out_args.np = dn;
+	iter->out_args.args_count = count;
+	for (i = 0; i < count; i++)
+		iter->out_args.args[i] = be32_to_cpup(iter->cur++);
+
+	return;
+
+err_out:
+	iter->cur = NULL;
+}
+EXPORT_SYMBOL_GPL(of_phandle_iter_next);
+
+void of_phandle_iter_start(struct of_phandle_iter *iter,
+			   const struct device_node *np,
+			   const char *list_name, const char *cells_name,
+			   int cell_count)
+{
+	int bytes;
+
+	iter->cur = of_get_property(np, list_name, &bytes);
+	if (!iter->cur)
+		return;
+	iter->end = iter->cur;
+	if (bytes)
+		iter->end += bytes / sizeof(*iter->cur);
+	iter->cells_name = cells_name;
+	iter->cell_count = cell_count;
+	of_phandle_iter_next(iter);
+}
+EXPORT_SYMBOL_GPL(of_phandle_iter_start);
+
+
 /**
  * of_count_phandle_with_args() - Find the number of phandles references in a property
  * @np:		pointer to a device tree node containing a list
@@ -1619,6 +1670,31 @@ int of_alias_get_id(struct device_node *np, const char *stem)
 	return id;
 }
 EXPORT_SYMBOL_GPL(of_alias_get_id);
+
+/**
+ * of_alias_get_max_id - Get maximim alias id for the given stem
+ * @stem:	Alias stem of the given device_node
+ *
+ * The function travels the lookup table to get maximum alias id for
+ * the given alias stem.  It returns the maximum alias id if find it.
+ */
+int of_alias_get_max_id(const char *stem)
+{
+	struct alias_prop *app;
+	int id = -ENODEV;
+
+	mutex_lock(&of_aliases_mutex);
+	list_for_each_entry(app, &aliases_lookup, link) {
+		if (strcmp(app->stem, stem) != 0)
+			continue;
+
+		id = (app->id > id) ? app->id : id;
+	}
+	mutex_unlock(&of_aliases_mutex);
+
+	return id;
+}
+EXPORT_SYMBOL_GPL(of_alias_get_max_id);
 
 const __be32 *of_prop_next_u32(struct property *prop, const __be32 *cur,
 			       u32 *pu)

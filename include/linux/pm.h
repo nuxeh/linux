@@ -33,6 +33,7 @@
  */
 extern void (*pm_power_off)(void);
 extern void (*pm_power_off_prepare)(void);
+extern void (*pm_power_reset)(void);
 
 struct device; /* we have a circular dep with device.h */
 #ifdef CONFIG_VT_CONSOLE_SLEEP
@@ -294,6 +295,12 @@ struct dev_pm_ops {
 	int (*thaw_noirq)(struct device *dev);
 	int (*poweroff_noirq)(struct device *dev);
 	int (*restore_noirq)(struct device *dev);
+	int (*suspend_noirq_late)(struct device *dev);
+	int (*resume_noirq_early)(struct device *dev);
+	int (*freeze_noirq_late)(struct device *dev);
+	int (*thaw_noirq_early)(struct device *dev);
+	int (*poweroff_noirq_late)(struct device *dev);
+	int (*restore_noirq_early)(struct device *dev);
 	int (*runtime_suspend)(struct device *dev);
 	int (*runtime_resume)(struct device *dev);
 	int (*runtime_idle)(struct device *dev);
@@ -575,7 +582,19 @@ extern int dev_pm_put_subsys_data(struct device *dev);
  */
 struct dev_pm_domain {
 	struct dev_pm_ops	ops;
+	void (*detach)(struct device *dev, bool power_off);
 };
+
+#ifdef CONFIG_PM
+extern int dev_pm_domain_attach(struct device *dev, bool power_on);
+extern void dev_pm_domain_detach(struct device *dev, bool power_off);
+#else
+static inline int dev_pm_domain_attach(struct device *dev, bool power_on)
+{
+	return -ENODEV;
+}
+static inline void dev_pm_domain_detach(struct device *dev, bool power_off) {}
+#endif
 
 /*
  * The PM_EVENT_ messages are also used by drivers implementing the legacy

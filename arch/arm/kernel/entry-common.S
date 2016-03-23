@@ -11,6 +11,7 @@
 #include <asm/unistd.h>
 #include <asm/ftrace.h>
 #include <asm/unwind.h>
+#include <asm/cp15.h>
 
 #ifdef CONFIG_NEED_RET_TO_USER
 #include <mach/entry-macro.S>
@@ -409,6 +410,22 @@ ENTRY(vector_swi)
  USER(	ldr	scno, [lr, #-4]		)	@ get SWI instruction
 #endif
 
+#ifdef CONFIG_ALIGNMENT_TRAP
+	ldr	ip, __cr_alignment
+	ldr	ip, [ip]
+	/*
+	 * Update alignment bit in control register only if it is different
+	 * from what's expected.
+	 */
+	mrc	p15, 0, r8, c1, c0
+	eor	r8, r8, ip
+	ands	r8, r8, #CR_A
+	mcrne	p15, 0, ip, c1, c0
+#endif
+	enable_irq
+	ct_user_exit
+
+	get_thread_info tsk
 	adr	tbl, sys_call_table		@ load syscall table pointer
 
 #if defined(CONFIG_OABI_COMPAT)

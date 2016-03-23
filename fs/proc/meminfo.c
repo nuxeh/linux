@@ -16,9 +16,61 @@
 #include <asm/pgtable.h>
 #include "internal.h"
 
+#include <linux/nvmap.h>
+
 void __attribute__((weak)) arch_report_meminfo(struct seq_file *m)
 {
 }
+
+long get_available_memory(void)
+{
+	long available;
+	unsigned long pagecache;
+	unsigned long wmark_low = 0;
+	struct zone *zone;
+	unsigned long pages[NR_LRU_LISTS];
+	struct sysinfo i;
+	int lru;
+
+	si_meminfo(&i);
+
+	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
+		pages[lru] = global_page_state(NR_LRU_BASE + lru);
+
+	for_each_zone(zone)
+		wmark_low += zone->watermark[WMARK_LOW];
+
+	/*
+	 * Estimate the amount of memory available for userspace allocations,
+	 * without causing swapping.
+	 *
+	 * Free memory cannot be taken below the low watermark, before the
+	 * system starts swapping.
+	 */
+	available = i.freeram - wmark_low + nvmap_page_pool_get_unused_pages();
+
+	/*
+	 * Not all the page cache can be freed, otherwise the system will
+	 * start swapping. Assume at least half of the page cache, or the
+	 * low watermark worth of cache, needs to stay.
+	 */
+	pagecache = pages[LRU_ACTIVE_FILE] + pages[LRU_INACTIVE_FILE];
+	pagecache -= min(pagecache / 2, wmark_low);
+	available += pagecache;
+
+	/*
+	 * Part of the reclaimable swap consists of items that are in use,
+	 * and cannot be freed. Cap this estimate at the low watermark.
+	 */
+	available += global_page_state(NR_SLAB_RECLAIMABLE) -
+		     min(global_page_state(NR_SLAB_RECLAIMABLE) / 2, wmark_low);
+
+	if (available < 0)
+		available = 0;
+
+	return available;
+}
+EXPORT_SYMBOL(get_available_memory);
 
 static int meminfo_proc_show(struct seq_file *m, void *v)
 {
@@ -27,6 +79,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long allowed;
 	struct vmalloc_info vmi;
 	long cached;
+	long available;
 	unsigned long pages[NR_LRU_LISTS];
 	int lru;
 
@@ -50,12 +103,14 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_page_state(NR_LRU_BASE + lru);
 
+	available = get_available_memory();
 	/*
 	 * Tagged format, for easy grepping and expansion.
 	 */
 	seq_printf(m,
 		"MemTotal:       %8lu kB\n"
 		"MemFree:        %8lu kB\n"
+		"MemAvailable:   %8lu kB\n"
 		"Buffers:        %8lu kB\n"
 		"Cached:         %8lu kB\n"
 		"SwapCached:     %8lu kB\n"
@@ -105,9 +160,14 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 		"AnonHugePages:  %8lu kB\n"
 #endif
+#if defined(CONFIG_TEGRA_NVMAP)
+		"NvMapMemFree:   %8lu kB\n"
+		"NvMapMemUsed:   %8lu kB\n"
+#endif
 		,
 		K(i.totalram),
 		K(i.freeram),
+		K(available),
 		K(i.bufferram),
 		K(cached),
 		K(total_swapcache_pages()),
@@ -164,6 +224,10 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 		,K(global_page_state(NR_ANON_TRANSPARENT_HUGEPAGES) *
 		   HPAGE_PMD_NR)
+#endif
+#if defined(CONFIG_TEGRA_NVMAP)
+		, K(nvmap_page_pool_get_unused_pages()),
+		K(nvmap_iovmm_get_used_pages())
 #endif
 		);
 

@@ -23,6 +23,7 @@
 #include <linux/mmu_notifier.h>
 #include <linux/migrate.h>
 #include <linux/perf_event.h>
+#include <linux/tegra_profiler.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/cacheflush.h>
@@ -56,8 +57,10 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 
 			ptent = ptep_modify_prot_start(mm, addr, pte);
 			if (!prot_numa) {
+				pte_t old_ptent = ptent;
 				ptent = pte_modify(ptent, newprot);
-				updated = true;
+				if (ptent != old_ptent)
+					updated = true;
 			} else {
 				struct page *page;
 
@@ -278,7 +281,8 @@ mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	 */
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*pprev = vma_merge(mm, *pprev, start, end, newflags,
-			vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma));
+			vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma),
+			vma_get_anon_name(vma));
 	if (*pprev) {
 		vma = *pprev;
 		goto success;
@@ -318,6 +322,7 @@ success:
 	vm_stat_account(mm, oldflags, vma->vm_file, -nrpages);
 	vm_stat_account(mm, newflags, vma->vm_file, nrpages);
 	perf_event_mmap(vma);
+	quadd_event_mmap(vma);
 	return 0;
 
 fail:

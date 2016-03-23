@@ -637,6 +637,7 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 
 	child->parent = parent;
 	child->ops = parent->ops;
+	child->msi = parent->msi;
 	child->sysdata = parent->sysdata;
 	child->bus_flags = parent->bus_flags;
 
@@ -1581,9 +1582,12 @@ static int pcie_bus_configure_set(struct pci_dev *dev, void *data)
  * parents then children fashion.  If this changes, then this code will not
  * work as designed.
  */
-void pcie_bus_configure_settings(struct pci_bus *bus, u8 mpss)
+void pcie_bus_configure_settings(struct pci_bus *bus)
 {
-	u8 smpss;
+	u8 smpss = 0;
+
+	if (!bus->self)
+		return;
 
 	if (!pci_is_pcie(bus->self))
 		return;
@@ -1599,7 +1603,7 @@ void pcie_bus_configure_settings(struct pci_bus *bus, u8 mpss)
 		smpss = 0;
 
 	if (pcie_bus_config == PCIE_BUS_SAFE) {
-		smpss = mpss;
+		smpss = bus->self->pcie_mpss;
 
 		pcie_find_smpss(bus->self, &smpss);
 		pci_walk_bus(bus, pcie_find_smpss, &smpss);
@@ -1775,6 +1779,7 @@ err_out:
 	kfree(b);
 	return NULL;
 }
+EXPORT_SYMBOL(pci_create_root_bus);
 
 int pci_bus_insert_busn_res(struct pci_bus *b, int bus, int bus_max)
 {

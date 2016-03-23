@@ -1,3 +1,5 @@
+subdir-ccflags-y	+= -Werror
+
 obj-$(CONFIG_CLKSRC_OF)	+= clksrc-of.o
 obj-$(CONFIG_ATMEL_TCB_CLKSRC)	+= tcb_clksrc.o
 obj-$(CONFIG_X86_CYCLONE_TIMER)	+= cyclone.o
@@ -20,7 +22,6 @@ obj-$(CONFIG_ARCH_MARCO)	+= timer-marco.o
 obj-$(CONFIG_ARCH_MXS)		+= mxs_timer.o
 obj-$(CONFIG_ARCH_PRIMA2)	+= timer-prima2.o
 obj-$(CONFIG_SUN4I_TIMER)	+= sun4i_timer.o
-obj-$(CONFIG_ARCH_TEGRA)	+= tegra20_timer.o
 obj-$(CONFIG_VT8500_TIMER)	+= vt8500_timer.o
 obj-$(CONFIG_ARCH_BCM)		+= bcm_kona_timer.o
 obj-$(CONFIG_CADENCE_TTC_TIMER)	+= cadence_ttc_timer.o
@@ -29,3 +30,12 @@ obj-$(CONFIG_CLKSRC_SAMSUNG_PWM)	+= samsung_pwm_timer.o
 
 obj-$(CONFIG_ARM_ARCH_TIMER)		+= arm_arch_timer.o
 obj-$(CONFIG_CLKSRC_METAG_GENERIC)	+= metag_generic.o
+
+obj-$(CONFIG_CLK_SRC_TEGRA_TIMER)       += tegra-nvtimers.o
+obj-$(CONFIG_CLK_SRC_TEGRA_TIMER)       += tegra-wakeup-nvtimers.o
+obj-$(CONFIG_CLK_SRC_TEGRA_TIMER)       += tegra-rtc.o
+obj-$(CONFIG_ARCH_TEGRA_21x_SOC)	+= tegra210_timer.o
+obj-$(CONFIG_ARCH_TEGRA_21x_SOC)	+= tegra-rtc.o
+ifneq ($(CONFIG_ARM64),y)
+obj-$(CONFIG_ARM_ARCH_TIMER)            += tegra-tsc-timer.o
+endif

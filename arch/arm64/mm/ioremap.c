@@ -77,8 +77,43 @@ EXPORT_SYMBOL(__ioremap);
 
 void __iounmap(volatile void __iomem *io_addr)
 {
-	void *addr = (void *)(PAGE_MASK & (unsigned long)io_addr);
+	unsigned long addr = (unsigned long)io_addr & PAGE_MASK;
 
-	vunmap(addr);
+	/*
+	 * We could get an address outside vmalloc range in case
+	 * of ioremap_cache() reusing a RAM mapping.
+	 */
+	if (VMALLOC_START <= addr && addr < VMALLOC_END)
+		vunmap((void *)addr);
 }
 EXPORT_SYMBOL(__iounmap);
+
+#ifdef CONFIG_PCI
+int pci_ioremap_io(unsigned int offset, phys_addr_t phys_addr)
+{
+	BUG_ON(offset + SZ_64K > IO_SPACE_LIMIT);
+
+	return ioremap_page_range((unsigned long)PCI_IOBASE + offset,
+				  (unsigned long)PCI_IOBASE + offset + SZ_64K,
+				  phys_addr,
+				  __pgprot(PROT_DEVICE_nGnRE));
+}
+EXPORT_SYMBOL_GPL(pci_ioremap_io);
+
+void pci_iounmap_io(unsigned int offset)
+{
+	unmap_kernel_range((unsigned long)PCI_IOBASE + offset, SZ_64K);
+}
+EXPORT_SYMBOL_GPL(pci_iounmap_io);
+
+#endif
+void __iomem *ioremap_cache(phys_addr_t phys_addr, size_t size)
+{
+	/* For normal memory we already have a cacheable mapping. */
+	if (pfn_valid(__phys_to_pfn(phys_addr)))
+		return (void __iomem *)__phys_to_virt(phys_addr);
+
+	return __ioremap_caller(phys_addr, size, __pgprot(PROT_NORMAL),
+				__builtin_return_address(0));
+}
+EXPORT_SYMBOL(ioremap_cache);

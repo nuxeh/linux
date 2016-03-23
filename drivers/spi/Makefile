@@ -1,7 +1,9 @@
 #
 # Makefile for kernel SPI drivers.
 #
+GCOV_PROFILE := y
 
+ccflags-y += -Werror
 ccflags-$(CONFIG_SPI_DEBUG) := -DDEBUG
 
 # small core, mostly translating board-specific
@@ -65,9 +67,15 @@ obj-$(CONFIG_SPI_SH_HSPI)		+= spi-sh-hspi.o
 obj-$(CONFIG_SPI_SH_MSIOF)		+= spi-sh-msiof.o
 obj-$(CONFIG_SPI_SH_SCI)		+= spi-sh-sci.o
 obj-$(CONFIG_SPI_SIRF)		+= spi-sirf.o
-obj-$(CONFIG_SPI_TEGRA114)		+= spi-tegra114.o
 obj-$(CONFIG_SPI_TEGRA20_SFLASH)	+= spi-tegra20-sflash.o
 obj-$(CONFIG_SPI_TEGRA20_SLINK)		+= spi-tegra20-slink.o
+CFLAGS_spi-tegra11.o			= -Werror
+obj-$(CONFIG_SPI_TEGRA)			+= spi-tegra11.o
+CFLAGS_spi-tegra114.o			= -Werror
+obj-$(CONFIG_SPI_TEGRA114)			+= spi-tegra114.o
+obj-$(CONFIG_SPI_TEGRA114_SLAVE)	+= spi-tegra114-slave.o
+obj-$(CONFIG_SPI_TEGRA114_SLAVE)	+= spi-tegra124-slave.o
+obj-$(CONFIG_QSPI_TEGRA210)		+= spi-tegra210-qspi.o
 obj-$(CONFIG_SPI_TI_SSP)		+= spi-ti-ssp.o
 obj-$(CONFIG_SPI_TLE62X0)		+= spi-tle62x0.o
 obj-$(CONFIG_SPI_TOPCLIFF_PCH)		+= spi-topcliff-pch.o

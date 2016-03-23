@@ -61,6 +61,10 @@ config OF_NET
 	depends on NETDEVICES
 	def_bool y
 
+config OF_PLUGIN_MANAGER
+	def_bool y
+	depends on ARCH_TEGRA || PLATFORM_TEGRA
+
 config OF_MDIO
 	def_tristate PHYLIB
 	depends on PHYLIB
@@ -82,5 +86,11 @@ config OF_PCI_IRQ
 config OF_MTD
 	depends on MTD
 	def_bool y
+
+config OF_RESERVED_MEM
+	depends on OF_EARLY_FLATTREE
+	bool
+	help
+	  Helpers to allow for reservation of memory regions
 
 endmenu # OF

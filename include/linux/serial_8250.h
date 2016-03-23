@@ -98,6 +98,8 @@ struct uart_8250_port {
 	/* 8250 specific callbacks */
 	int			(*dl_read)(struct uart_8250_port *);
 	void			(*dl_write)(struct uart_8250_port *, int);
+	struct timer_list	rx_poll_timer;
+	int			rx_poll_timeout_jiffies;
 };
 
 int serial8250_register_8250_port(struct uart_8250_port *);
@@ -125,5 +127,12 @@ unsigned int serial8250_modem_status(struct uart_8250_port *up);
 extern void serial8250_set_isa_configurator(void (*v)
 					(int port, struct uart_port *up,
 						unsigned short *capabilities));
+#ifdef CONFIG_ARCH_TEGRA
+extern void tegra_serial_handle_break(struct uart_port *p);
+#else
+static inline void tegra_serial_handle_break(struct uart_port *port)
+{
+}
+#endif
 
 #endif

@@ -8,17 +8,6 @@ config ANDROID
 
 if ANDROID
 
-config ANDROID_BINDER_IPC
-	bool "Android Binder IPC Driver"
-	default n
-	---help---
-	  Binder is used in Android for both communication between processes,
-	  and remote method invocation.
-
-	  This means one Android process can call a method/routine in another
-	  Android process, using Binder to identify, invoke and pass arguments
-	  between said processes.
-
 config ASHMEM
 	bool "Enable the Anonymous Shared Memory Subsystem"
 	default n
@@ -48,6 +37,15 @@ config ANDROID_LOGGER
 	  optimized writes. This optimization avoids logging having too
 	  much overhead in the system.
 
+config ANDROID_PSTORE_LOGGER
+	tristate "Android pstore log driver"
+	default n
+	depends on ANDROID_LOGGER && PSTORE_PMSG
+	---help---
+	  This adds support for system-wide logging using ramoops buffers.
+	  When the option is enabled, data can be retrieved from
+	  /sys/fs/pstore/pmsg-ramoops-[ID].
+
 config ANDROID_TIMED_OUTPUT
 	bool "Timed output class driver"
 	default y
@@ -63,6 +61,24 @@ config ANDROID_LOW_MEMORY_KILLER
 	---help---
 	  Registers processes to be killed when memory is low
 
+config ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
+	bool "Android Low Memory Killer: detect oom_adj values"
+	depends on ANDROID_LOW_MEMORY_KILLER
+	default y
+	---help---
+	  Detect oom_adj values written to
+	  /sys/module/lowmemorykiller/parameters/adj and convert them
+	  to oom_score_adj values.
+
+config ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
+	bool "Android Low Memory Killer: detect oom_adj values"
+	depends on ANDROID_LOW_MEMORY_KILLER
+	default y
+	---help---
+	  Detect oom_adj values written to
+	  /sys/module/lowmemorykiller/parameters/adj and convert them
+	  to oom_score_adj values.
+
 config ANDROID_INTF_ALARM_DEV
 	bool "Android alarm driver"
 	depends on RTC_CLASS
@@ -72,33 +88,37 @@ config ANDROID_INTF_ALARM_DEV
 	  elapsed realtime, and a non-wakeup alarm on the monotonic clock.
 	  Also exports the alarm interface to user-space.
 
-config SYNC
-	bool "Synchronization framework"
-	default n
-	select ANON_INODES
-	help
-	  This option enables the framework for synchronization between multiple
-	  drivers.  Sync implementations can take advantage of hardware
-	  synchronization built into devices like GPUs.
-
-config SW_SYNC
-	bool "Software synchronization objects"
-	default n
-	depends on SYNC
-	help
-	  A sync object driver that uses a 32bit counter to coordinate
-	  syncrhronization.  Useful when there is no hardware primitive backing
-	  the synchronization.
-
-config SW_SYNC_USER
-	bool "Userspace API for SW_SYNC"
-	default n
-	depends on SW_SYNC
-	help
-	  Provides a user space API to the sw sync object.
-	  *WARNING* improper use of this can result in deadlocking kernel
-	  drivers from userspace.
+source "drivers/staging/android/ion/Kconfig"
 
 endif # if ANDROID
+
+source "drivers/staging/android/fiq_debugger/Kconfig"
+
+config SYNC
+        bool "Synchronization framework"
+        default n
+        select ANON_INODES
+        help
+          This option enables the framework for synchronization between multiple
+          drivers.  Sync implementations can take advantage of hardware
+          synchronization built into devices like GPUs.
+
+config SW_SYNC
+        bool "Software synchronization objects"
+        default n
+        depends on SYNC
+        help
+          A sync object driver that uses a 32bit counter to coordinate
+          syncrhronization.  Useful when there is no hardware primitive backing
+          the synchronization.
+
+config SW_SYNC_USER
+        bool "Userspace API for SW_SYNC"
+        default n
+        depends on SW_SYNC
+        help
+          Provides a user space API to the sw sync object.
+          *WARNING* improper use of this can result in deadlocking kernel
+          drivers from userspace.
 
 endmenu

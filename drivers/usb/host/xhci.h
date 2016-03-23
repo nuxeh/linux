@@ -279,6 +279,9 @@ struct xhci_op_regs {
 #define XDEV_U2		(0x2 << 5)
 #define XDEV_U3		(0x3 << 5)
 #define XDEV_RESUME	(0xf << 5)
+#define XDEV_DISABLED	(0x4 << 5)
+#define XDEV_RXDETECT	(0x5 << 5)
+#define XDEV_POLLING	(0x7 << 5)
 /* true: port has power (see HCC_PPC) */
 #define PORT_POWER	(1 << 9)
 /* bits 10:13 indicate device speed:
@@ -1337,6 +1340,7 @@ struct xhci_scratchpad {
 struct urb_priv {
 	int	length;
 	int	td_cnt;
+	bool	finishing_short_td;
 	struct	xhci_td	*td[0];
 };
 
@@ -1416,6 +1420,7 @@ struct xhci_hcd {
 
 	spinlock_t	lock;
 
+	struct usb_phy  *phy;
 	/* packed release number */
 	u8		sbrn;
 	u16		hci_version;
@@ -1563,6 +1568,8 @@ static inline struct usb_hcd *xhci_to_hcd(struct xhci_hcd *xhci)
 	do { if (XHCI_DEBUG) dev_info(xhci_to_hcd(xhci)->self.controller , fmt , ## args); } while (0)
 #define xhci_err(xhci, fmt, args...) \
 	dev_err(xhci_to_hcd(xhci)->self.controller , fmt , ## args)
+#define xhci_err_ratelimited(xhci, fmt, args...) \
+	dev_err_ratelimited(xhci_to_hcd(xhci)->self.controller , fmt , ## args)
 #define xhci_warn(xhci, fmt, args...) \
 	dev_warn(xhci_to_hcd(xhci)->self.controller , fmt , ## args)
 #define xhci_warn_ratelimited(xhci, fmt, args...) \

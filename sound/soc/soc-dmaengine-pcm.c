@@ -33,6 +33,8 @@ struct dmaengine_pcm_runtime_data {
 	dma_cookie_t cookie;
 
 	unsigned int pos;
+
+	void *data;
 };
 
 static inline struct dmaengine_pcm_runtime_data *substream_to_prtd(
@@ -40,6 +42,33 @@ static inline struct dmaengine_pcm_runtime_data *substream_to_prtd(
 {
 	return substream->runtime->private_data;
 }
+
+/**
+ * snd_dmaengine_pcm_set_data - Set dmaengine substream private data
+ * @substream: PCM substream
+ * @data: Data to set
+ */
+void snd_dmaengine_pcm_set_data(struct snd_pcm_substream *substream, void *data)
+{
+	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+
+	prtd->data = data;
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_set_data);
+
+/**
+ * snd_dmaengine_pcm_get_data - Get dmaeinge substream private data
+ * @substream: PCM substream
+ *
+ * Returns the data previously set with snd_dmaengine_pcm_set_data
+ */
+void *snd_dmaengine_pcm_get_data(struct snd_pcm_substream *substream)
+{
+	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+
+	return prtd->data;
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_get_data);
 
 struct dma_chan *snd_dmaengine_pcm_get_chan(struct snd_pcm_substream *substream)
 {
@@ -333,6 +362,29 @@ int snd_dmaengine_pcm_open_request_chan(struct snd_pcm_substream *substream,
 		    snd_dmaengine_pcm_request_channel(filter_fn, filter_data));
 }
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_open_request_chan);
+
+/**
+ * snd_dmaengine_pcm_open_request_chan_name - Open a dmaengine based PCM substream
+ * and request channel with the channel name
+ *
+ * @substream: PCM substream
+ * @chan_name: DMA channel name to open
+ *
+ * Returns 0 on success, a negative error code otherwise.
+ *
+ * This function will request a DMA channel using the name.
+ */
+int snd_dmaengine_pcm_open_request_chan_with_name(
+	struct snd_pcm_substream *substream,
+	const char *chan_name)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct device *dev = rtd->platform->dev;
+
+	return snd_dmaengine_pcm_open(substream,
+			dma_request_slave_channel(dev, chan_name));
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_open_request_chan_with_name);
 
 /**
  * snd_dmaengine_pcm_close - Close a dmaengine based PCM substream

@@ -16,8 +16,7 @@
 
 #include <linux/kernel.h>
 #include <linux/bug.h>
-
-#include "fuse.h"
+#include <linux/tegra-fuse.h>
 
 #define CPU_SPEEDO_LSBIT		20
 #define CPU_SPEEDO_MSBIT		29
@@ -67,6 +66,8 @@ void tegra20_init_speedo_data(void)
 
 	BUILD_BUG_ON(ARRAY_SIZE(cpu_process_speedos) != SPEEDO_ID_COUNT);
 	BUILD_BUG_ON(ARRAY_SIZE(core_process_speedos) != SPEEDO_ID_COUNT);
+
+	tegra_package_id = -1;
 
 	if (SPEEDO_ID_SELECT_0(tegra_revision))
 		tegra_soc_speedo_id = SPEEDO_ID_0;

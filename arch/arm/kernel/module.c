@@ -40,7 +40,7 @@
 void *module_alloc(unsigned long size)
 {
 	return __vmalloc_node_range(size, 1, MODULES_VADDR, MODULES_END,
-				GFP_KERNEL, PAGE_KERNEL_EXEC, -1,
+				GFP_KERNEL, PAGE_KERNEL_EXEC, NUMA_NO_NODE,
 				__builtin_return_address(0));
 }
 #endif
@@ -89,6 +89,7 @@ apply_relocate(Elf32_Shdr *sechdrs, const char *strtab, unsigned int symindex,
 			break;
 
 		case R_ARM_ABS32:
+		case R_ARM_TARGET1:
 			*(u32 *)loc += sym->st_value;
 			break;
 
@@ -288,24 +289,24 @@ int module_finalize(const Elf32_Ehdr *hdr, const Elf_Shdr *sechdrs,
 
 		if (strcmp(".ARM.exidx.init.text", secname) == 0)
 			maps[ARM_SEC_INIT].unw_sec = s;
-		else if (strcmp(".ARM.exidx.devinit.text", secname) == 0)
-			maps[ARM_SEC_DEVINIT].unw_sec = s;
 		else if (strcmp(".ARM.exidx", secname) == 0)
 			maps[ARM_SEC_CORE].unw_sec = s;
 		else if (strcmp(".ARM.exidx.exit.text", secname) == 0)
 			maps[ARM_SEC_EXIT].unw_sec = s;
-		else if (strcmp(".ARM.exidx.devexit.text", secname) == 0)
-			maps[ARM_SEC_DEVEXIT].unw_sec = s;
+		else if (strcmp(".ARM.exidx.text.unlikely", secname) == 0)
+			maps[ARM_SEC_UNLIKELY].unw_sec = s;
+		else if (strcmp(".ARM.exidx.text.hot", secname) == 0)
+			maps[ARM_SEC_HOT].unw_sec = s;
 		else if (strcmp(".init.text", secname) == 0)
 			maps[ARM_SEC_INIT].txt_sec = s;
-		else if (strcmp(".devinit.text", secname) == 0)
-			maps[ARM_SEC_DEVINIT].txt_sec = s;
 		else if (strcmp(".text", secname) == 0)
 			maps[ARM_SEC_CORE].txt_sec = s;
 		else if (strcmp(".exit.text", secname) == 0)
 			maps[ARM_SEC_EXIT].txt_sec = s;
-		else if (strcmp(".devexit.text", secname) == 0)
-			maps[ARM_SEC_DEVEXIT].txt_sec = s;
+		else if (strcmp(".text.unlikely", secname) == 0)
+			maps[ARM_SEC_UNLIKELY].txt_sec = s;
+		else if (strcmp(".text.hot", secname) == 0)
+			maps[ARM_SEC_HOT].txt_sec = s;
 	}
 
 	for (i = 0; i < ARM_SEC_MAX; i++)

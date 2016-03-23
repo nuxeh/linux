@@ -43,6 +43,7 @@
 #include <linux/sysctl.h>
 #include <linux/oom.h>
 #include <linux/prefetch.h>
+#include <linux/debugfs.h>
 
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -155,6 +156,40 @@ static unsigned long get_lru_size(struct lruvec *lruvec, enum lru_list lru)
 	return zone_page_state(lruvec_zone(lruvec), NR_LRU_BASE + lru);
 }
 
+struct dentry *debug_file;
+
+static int debug_shrinker_show(struct seq_file *s, void *unused)
+{
+	struct shrinker *shrinker;
+	struct shrink_control sc;
+
+	sc.gfp_mask = -1;
+	sc.nr_to_scan = 0;
+
+	down_read(&shrinker_rwsem);
+	list_for_each_entry(shrinker, &shrinker_list, list) {
+		char name[64];
+		int num_objs;
+
+		num_objs = shrinker->shrink(shrinker, &sc);
+		seq_printf(s, "%pf %d\n", shrinker->shrink, num_objs);
+	}
+	up_read(&shrinker_rwsem);
+	return 0;
+}
+
+static int debug_shrinker_open(struct inode *inode, struct file *file)
+{
+        return single_open(file, debug_shrinker_show, inode->i_private);
+}
+
+static const struct file_operations debug_shrinker_fops = {
+        .open = debug_shrinker_open,
+        .read = seq_read,
+        .llseek = seq_lseek,
+        .release = single_release,
+};
+
 /*
  * Add a shrinker callback to be called from the vm
  */
@@ -166,6 +201,15 @@ void register_shrinker(struct shrinker *shrinker)
 	up_write(&shrinker_rwsem);
 }
 EXPORT_SYMBOL(register_shrinker);
+
+static int __init add_shrinker_debug(void)
+{
+	debugfs_create_file("shrinker", 0644, NULL, NULL,
+			    &debug_shrinker_fops);
+	return 0;
+}
+
+late_initcall(add_shrinker_debug);
 
 /*
  * Remove one
@@ -974,7 +1018,7 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 		.priority = DEF_PRIORITY,
 		.may_unmap = 1,
 	};
-	unsigned long ret, dummy1, dummy2;
+	unsigned long ret, dummy1 = 0, dummy2 = 0;
 	struct page *page, *next;
 	LIST_HEAD(clean_pages);
 
@@ -1195,6 +1239,9 @@ static int too_many_isolated(struct zone *zone, int file,
 		return 0;
 
 	if (!global_reclaim(sc))
+		return 0;
+
+	if ((sc->gfp_mask & __GFP_MIGRATE) == __GFP_MIGRATE)
 		return 0;
 
 	if (file) {
@@ -3105,6 +3152,21 @@ static int kswapd(void *p)
 void wakeup_kswapd(struct zone *zone, int order, enum zone_type classzone_idx)
 {
 	pg_data_t *pgdat;
+
+	/* Check whether ZRAM is disabled. */
+	if(!total_swap_pages) {
+		/* Avoid kswapd for HIGH MEMORY ZONE. */
+#if defined(CONFIG_HIGHMEM) && defined(CONFIG_ANDROID_LOW_MEMORY_KILLER)
+                if (classzone_idx == ZONE_HIGHMEM)
+                        return;
+#endif
+
+#if defined(CONFIG_ZONE_DMA32) && defined(CONFIG_ANDROID_LOW_MEMORY_KILLER)
+	/* Avoid Normal zone balancing when DMA32 zone exist. */
+		if (classzone_idx == ZONE_NORMAL)
+			return;
+#endif
+	}
 
 	if (!populated_zone(zone))
 		return;

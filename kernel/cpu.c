@@ -19,6 +19,7 @@
 #include <linux/mutex.h>
 #include <linux/gfp.h>
 #include <linux/suspend.h>
+#include <trace/events/power.h>
 
 #include "smpboot.h"
 
@@ -327,8 +328,8 @@ static int __ref _cpu_down(unsigned int cpu, int tasks_frozen)
 	 *
 	 * Wait for the stop thread to go away.
 	 */
-	while (!idle_cpu(cpu))
-		cpu_relax();
+	while (!idle_cpu_relaxed(cpu))
+		cpu_read_relax();
 
 	/* This actually kills the CPU. */
 	__cpu_die(cpu);
@@ -349,6 +350,8 @@ int __ref cpu_down(unsigned int cpu)
 {
 	int err;
 
+	trace_cpu_hotplug(cpu, POWER_CPU_DOWN_START);
+
 	cpu_maps_update_begin();
 
 	if (cpu_hotplug_disabled) {
@@ -360,6 +363,7 @@ int __ref cpu_down(unsigned int cpu)
 
 out:
 	cpu_maps_update_done();
+	trace_cpu_hotplug(cpu, POWER_CPU_DOWN_DONE);
 	return err;
 }
 EXPORT_SYMBOL(cpu_down);
@@ -419,7 +423,7 @@ out:
 	return ret;
 }
 
-int __cpuinit cpu_up(unsigned int cpu)
+int __ref cpu_up(unsigned int cpu)
 {
 	int err = 0;
 
@@ -427,6 +431,8 @@ int __cpuinit cpu_up(unsigned int cpu)
 	int nid;
 	pg_data_t	*pgdat;
 #endif
+
+	trace_cpu_hotplug(cpu, POWER_CPU_UP_START);
 
 	if (!cpu_possible(cpu)) {
 		printk(KERN_ERR "can't online cpu %d because it is not "
@@ -471,6 +477,7 @@ int __cpuinit cpu_up(unsigned int cpu)
 
 out:
 	cpu_maps_update_done();
+	trace_cpu_hotplug(cpu, POWER_CPU_UP_DONE);
 	return err;
 }
 EXPORT_SYMBOL_GPL(cpu_up);
@@ -494,7 +501,9 @@ int disable_nonboot_cpus(void)
 	for_each_online_cpu(cpu) {
 		if (cpu == first_cpu)
 			continue;
+		trace_suspend_resume(TPS("CPU_OFF"), cpu, true);
 		error = _cpu_down(cpu, 1);
+		trace_suspend_resume(TPS("CPU_OFF"), cpu, false);
 		if (!error)
 			cpumask_set_cpu(cpu, frozen_cpus);
 		else {
@@ -538,7 +547,9 @@ void __ref enable_nonboot_cpus(void)
 	arch_enable_nonboot_cpus_begin();
 
 	for_each_cpu(cpu, frozen_cpus) {
+		trace_suspend_resume(TPS("CPU_ON"), cpu, true);
 		error = _cpu_up(cpu, 1);
+		trace_suspend_resume(TPS("CPU_ON"), cpu, false);
 		if (!error) {
 			printk(KERN_INFO "CPU%d is up\n", cpu);
 			continue;
@@ -728,3 +739,23 @@ void init_cpu_online(const struct cpumask *src)
 {
 	cpumask_copy(to_cpumask(cpu_online_bits), src);
 }
+
+static ATOMIC_NOTIFIER_HEAD(idle_notifier);
+
+void idle_notifier_register(struct notifier_block *n)
+{
+	atomic_notifier_chain_register(&idle_notifier, n);
+}
+EXPORT_SYMBOL_GPL(idle_notifier_register);
+
+void idle_notifier_unregister(struct notifier_block *n)
+{
+	atomic_notifier_chain_unregister(&idle_notifier, n);
+}
+EXPORT_SYMBOL_GPL(idle_notifier_unregister);
+
+void idle_notifier_call_chain(unsigned long val)
+{
+	atomic_notifier_call_chain(&idle_notifier, val, NULL);
+}
+EXPORT_SYMBOL_GPL(idle_notifier_call_chain);

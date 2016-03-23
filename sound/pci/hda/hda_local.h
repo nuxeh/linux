@@ -4,6 +4,7 @@
  * Local helper functions
  *
  * Copyright (c) 2004 Takashi Iwai <tiwai@suse.de>
+ * Copyright (c) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the Free
@@ -26,7 +27,7 @@
 /* We abuse kcontrol_new.subdev field to pass the NID corresponding to
  * the given new control.  If id.subdev has a bit flag HDA_SUBDEV_NID_FLAG,
  * snd_hda_ctl_add() takes the lower-bit subdev value as a valid NID.
- * 
+ *
  * Note that the subdevice field is cleared again before the real registration
  * in snd_hda_ctl_add(), so that this value won't appear in the outside.
  */
@@ -105,6 +106,10 @@
 	HDA_CODEC_MUTE_BEEP_MONO(xname, nid, 3, xindex, direction)
 
 extern const char *snd_hda_pcm_type_name[];
+
+#ifdef CONFIG_SND_HDA_VPR
+extern struct device tegra_vpr_dev;
+#endif
 
 int snd_hda_mixer_amp_volume_info(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_info *uinfo);
@@ -729,6 +734,7 @@ struct parsed_hdmi_eld {
 	/*
 	 * all fields will be cleared before updating ELD
 	 */
+	bool	lpcm_sad_ready;
 	int	baseline_len;
 	int	eld_ver;
 	int	cea_edid_ver;
@@ -765,6 +771,8 @@ int snd_hdmi_parse_eld(struct parsed_hdmi_eld *e,
 void snd_hdmi_show_eld(struct parsed_hdmi_eld *e);
 void snd_hdmi_eld_update_pcm_info(struct parsed_hdmi_eld *e,
 			      struct hda_pcm_stream *hinfo);
+int hdmi_update_lpcm_sad_eld (struct hda_codec *codec, hda_nid_t nid,
+				     struct hdmi_eld *e);
 
 #ifdef CONFIG_PROC_FS
 int snd_hda_eld_proc_new(struct hda_codec *codec, struct hdmi_eld *eld,

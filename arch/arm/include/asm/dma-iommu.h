@@ -17,9 +17,17 @@ struct dma_iommu_mapping {
 	size_t			bits;
 	unsigned int		order;
 	dma_addr_t		base;
+	dma_addr_t		end;
 
 	spinlock_t		lock;
 	struct kref		kref;
+	struct list_head	list;
+
+	bool			gap_page;
+	int			num_pf_page;
+	/* FIXME: currently only alignment of 2^n is supported. */
+	size_t			alignment;
+
 };
 
 struct dma_iommu_mapping *

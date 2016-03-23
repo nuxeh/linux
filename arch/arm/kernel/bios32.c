@@ -293,6 +293,7 @@ void pcibios_fixup_bus(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
 	u16 features = PCI_COMMAND_SERR | PCI_COMMAND_PARITY | PCI_COMMAND_FAST_BACK;
+	bool has_pcie_dev = 0;
 
 	/*
 	 * Walk the devices on this bus, working out what we can
@@ -301,6 +302,8 @@ void pcibios_fixup_bus(struct pci_bus *bus)
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		u16 status;
 
+		if (!has_pcie_dev)
+			has_pcie_dev = pci_is_pcie(dev);
 		pci_read_config_word(dev, PCI_STATUS, &status);
 
 		/*
@@ -357,11 +360,27 @@ void pcibios_fixup_bus(struct pci_bus *bus)
 
 	/*
 	 * Report what we did for this bus
+	 * (only if the bus doesn't have even one PCIe device)
 	 */
-	printk(KERN_INFO "PCI: bus%d: Fast back to back transfers %sabled\n",
-		bus->number, (features & PCI_COMMAND_FAST_BACK) ? "en" : "dis");
+	if (!has_pcie_dev)
+		pr_info("PCI: bus%d: Fast back to back transfers %sabled\n",
+			bus->number, (features & PCI_COMMAND_FAST_BACK) ? "en" : "dis");
 }
 EXPORT_SYMBOL(pcibios_fixup_bus);
+
+void pcibios_add_bus(struct pci_bus *bus)
+{
+	struct pci_sys_data *sys = bus->sysdata;
+	if (sys->add_bus)
+		sys->add_bus(bus);
+}
+
+void pcibios_remove_bus(struct pci_bus *bus)
+{
+	struct pci_sys_data *sys = bus->sysdata;
+	if (sys->remove_bus)
+		sys->remove_bus(bus);
+}
 
 /*
  * Swizzle the device pin each time we cross a bridge.  If a platform does
@@ -445,7 +464,8 @@ static int pcibios_init_resources(int busnr, struct pci_sys_data *sys)
 	return 0;
 }
 
-static void pcibios_init_hw(struct hw_pci *hw, struct list_head *head)
+static void pcibios_init_hw(struct device *parent, struct hw_pci *hw,
+			    struct list_head *head)
 {
 	struct pci_sys_data *sys = NULL;
 	int ret;
@@ -460,9 +480,13 @@ static void pcibios_init_hw(struct hw_pci *hw, struct list_head *head)
 		sys->domain  = hw->domain;
 #endif
 		sys->busnr   = busnr;
+		sys->nr      = nr;
 		sys->swizzle = hw->swizzle;
 		sys->map_irq = hw->map_irq;
 		sys->align_resource = hw->align_resource;
+		sys->add_bus = hw->add_bus;
+		sys->remove_bus = hw->remove_bus;
+		sys->teardown = hw->teardown;
 		INIT_LIST_HEAD(&sys->resources);
 
 		if (hw->private_data)
@@ -480,7 +504,7 @@ static void pcibios_init_hw(struct hw_pci *hw, struct list_head *head)
 			if (hw->scan)
 				sys->bus = hw->scan(nr, sys);
 			else
-				sys->bus = pci_scan_root_bus(NULL, sys->busnr,
+				sys->bus = pci_scan_root_bus(parent, sys->busnr,
 						hw->ops, sys, &sys->resources);
 
 			if (!sys->bus)
@@ -497,21 +521,27 @@ static void pcibios_init_hw(struct hw_pci *hw, struct list_head *head)
 	}
 }
 
-void pci_common_init(struct hw_pci *hw)
+void pci_common_init_dev(struct device *parent, struct hw_pci *hw)
 {
 	struct pci_sys_data *sys;
-	LIST_HEAD(head);
+	struct list_head *head;
+	LIST_HEAD(list);
+
+	if (hw->sys)
+		head = hw->sys;
+	else
+		head = &list;
 
 	pci_add_flags(PCI_REASSIGN_ALL_RSRC);
 	if (hw->preinit)
 		hw->preinit();
-	pcibios_init_hw(hw, &head);
+	pcibios_init_hw(parent, hw, head);
 	if (hw->postinit)
 		hw->postinit();
 
 	pci_fixup_irqs(pcibios_swizzle, pcibios_map_irq);
 
-	list_for_each_entry(sys, &head, node) {
+	list_for_each_entry(sys, head, node) {
 		struct pci_bus *bus = sys->bus;
 
 		if (!pci_has_flag(PCI_PROBE_ONLY)) {
@@ -536,7 +566,39 @@ void pci_common_init(struct hw_pci *hw)
 		 */
 		pci_bus_add_devices(bus);
 	}
+
+	list_for_each_entry(sys, head, node) {
+		struct pci_bus *bus = sys->bus;
+
+		/* Configure PCI Express settings */
+		if (bus && !pci_has_flag(PCI_PROBE_ONLY)) {
+			struct pci_bus *child;
+
+			list_for_each_entry(child, &bus->children, node)
+				pcie_bus_configure_settings(child);
+		}
+	}
 }
+EXPORT_SYMBOL(pci_common_init_dev);
+
+void pci_common_exit(struct list_head *head)
+{
+	struct pci_sys_data *sys, *tmp;
+
+	list_for_each_entry_safe(sys, tmp, head, node) {
+		pci_stop_root_bus(sys->bus);
+		pci_remove_root_bus(sys->bus);
+		list_del(&sys->node);
+
+		release_resource(&sys->io_res);
+
+		if (sys->teardown)
+			sys->teardown(sys->nr, sys);
+
+		kfree(sys);
+	}
+}
+EXPORT_SYMBOL(pci_common_exit);
 
 #ifndef CONFIG_PCI_HOST_ITE8152
 void pcibios_set_master(struct pci_dev *dev)

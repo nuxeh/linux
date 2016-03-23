@@ -64,6 +64,8 @@ source "drivers/pinctrl/Kconfig"
 
 source "drivers/gpio/Kconfig"
 
+source "drivers/padctrl/Kconfig"
+
 source "drivers/w1/Kconfig"
 
 source "drivers/power/Kconfig"
@@ -99,6 +101,8 @@ source "drivers/mmc/Kconfig"
 source "drivers/memstick/Kconfig"
 
 source "drivers/leds/Kconfig"
+
+source "drivers/switch/Kconfig"
 
 source "drivers/accessibility/Kconfig"
 
@@ -150,6 +154,8 @@ source "drivers/devfreq/Kconfig"
 
 source "drivers/extcon/Kconfig"
 
+source "drivers/mipi_bif/Kconfig"
+
 source "drivers/memory/Kconfig"
 
 source "drivers/iio/Kconfig"
@@ -165,5 +171,13 @@ source "drivers/irqchip/Kconfig"
 source "drivers/ipack/Kconfig"
 
 source "drivers/reset/Kconfig"
+
+source "drivers/edp/Kconfig"
+
+source "drivers/gpu/nvgpu/Kconfig"
+
+source "drivers/phy/Kconfig"
+
+source "drivers/android/Kconfig"
 
 endmenu

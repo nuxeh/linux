@@ -482,7 +482,7 @@ u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time)
 		update_ts_time_stats(cpu, ts, now, last_update_time);
 		idle = ts->idle_sleeptime;
 	} else {
-		if (ts->idle_active && !nr_iowait_cpu(cpu)) {
+		if (cpu_online(cpu) && ts->idle_active && !nr_iowait_cpu(cpu)) {
 			ktime_t delta = ktime_sub(now, ts->idle_entrytime);
 
 			idle = ktime_add(ts->idle_sleeptime, delta);
@@ -523,7 +523,8 @@ u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
 		update_ts_time_stats(cpu, ts, now, last_update_time);
 		iowait = ts->iowait_sleeptime;
 	} else {
-		if (ts->idle_active && nr_iowait_cpu(cpu) > 0) {
+		if (cpu_online(cpu) && ts->idle_active &&
+						nr_iowait_cpu(cpu) > 0) {
 			ktime_t delta = ktime_sub(now, ts->idle_entrytime);
 
 			iowait = ktime_add(ts->iowait_sleeptime, delta);
@@ -812,7 +813,7 @@ void tick_nohz_idle_enter(void)
 	ts = &__get_cpu_var(tick_cpu_sched);
 	/*
 	 * set ts->inidle unconditionally. even if the system did not
-	 * switch to nohz mode the cpu frequency governers rely on the
+	 * switch to nohz mode the cpu frequency governors rely on the
 	 * update of the idle time accounting in tick_nohz_start_idle().
 	 */
 	ts->inidle = 1;
@@ -865,8 +866,15 @@ static void tick_nohz_restart(struct tick_sched *ts, ktime_t now)
 			hrtimer_start_expires(&ts->sched_timer,
 					      HRTIMER_MODE_ABS_PINNED);
 			/* Check, if the timer was already in the past */
-			if (hrtimer_active(&ts->sched_timer))
-				break;
+			if (hrtimer_active(&ts->sched_timer)) {
+				ktime_t remaining, expire;
+				expire = hrtimer_get_expires(&ts->sched_timer);
+				remaining = ktime_sub(expire, ktime_get());
+				if (remaining.tv64 > 0)
+					break;
+				else
+					hrtimer_cancel(&ts->sched_timer);
+			}
 		} else {
 			if (!tick_program_event(
 				hrtimer_get_expires(&ts->sched_timer), 0))
@@ -1157,6 +1165,17 @@ void tick_setup_sched_timer(void)
 #endif /* HIGH_RES_TIMERS */
 
 #if defined CONFIG_NO_HZ_COMMON || defined CONFIG_HIGH_RES_TIMERS
+
+static inline void clear_tick_sched(struct tick_sched *ts)
+{
+	ktime_t idle_sleeptime = ts->idle_sleeptime;
+	ktime_t iowait_sleeptime = ts->iowait_sleeptime;
+
+	memset(ts, 0, sizeof(*ts));
+	ts->idle_sleeptime = idle_sleeptime;
+	ts->iowait_sleeptime = iowait_sleeptime;
+}
+
 void tick_cancel_sched_timer(int cpu)
 {
 	struct tick_sched *ts = &per_cpu(tick_cpu_sched, cpu);
@@ -1166,7 +1185,7 @@ void tick_cancel_sched_timer(int cpu)
 		hrtimer_cancel(&ts->sched_timer);
 # endif
 
-	memset(ts, 0, sizeof(*ts));
+	clear_tick_sched(ts);
 }
 #endif
 

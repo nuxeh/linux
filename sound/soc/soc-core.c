@@ -610,11 +610,11 @@ int snd_soc_suspend(struct device *dev)
 		snd_soc_dapm_stream_event(&card->rtd[i],
 					  SNDRV_PCM_STREAM_CAPTURE,
 					  SND_SOC_DAPM_STREAM_SUSPEND);
-	}
 
-	/* Recheck all analogue paths too */
-	dapm_mark_io_dirty(&card->dapm);
-	snd_soc_dapm_sync(&card->dapm);
+		/* Recheck all analogue paths too */
+		dapm_mark_io_dirty(&card->dapm);
+		snd_soc_dapm_sync(&card->dapm);
+	}
 
 	/* suspend all CODECs */
 	list_for_each_entry(codec, &card->codec_dev_list, card_list) {
@@ -3461,6 +3461,22 @@ int snd_soc_codec_set_pll(struct snd_soc_codec *codec, int pll_id, int source,
 		return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(snd_soc_codec_set_pll);
+
+/**
+ * snd_soc_dai_set_bclk_ratio - configure BCLK to sample rate ratio.
+ * @dai: DAI
+ * @ratio Ratio of BCLK to Sample rate.
+ *
+ * Configures the DAI for a preset BCLK to sample rate ratio.
+ */
+int snd_soc_dai_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+{
+	if (dai->driver && dai->driver->ops->set_bclk_ratio)
+		return dai->driver->ops->set_bclk_ratio(dai, ratio);
+	else
+		return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dai_set_bclk_ratio);
 
 /**
  * snd_soc_dai_set_fmt - configure DAI hardware audio format.

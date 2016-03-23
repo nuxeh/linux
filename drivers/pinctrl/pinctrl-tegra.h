@@ -1,7 +1,7 @@
 /*
  * Driver for the NVIDIA Tegra pinmux
  *
- * Copyright (c) 2011, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2011-2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,54 +15,6 @@
 
 #ifndef __PINMUX_TEGRA_H__
 #define __PINMUX_TEGRA_H__
-
-enum tegra_pinconf_param {
-	/* argument: tegra_pinconf_pull */
-	TEGRA_PINCONF_PARAM_PULL,
-	/* argument: tegra_pinconf_tristate */
-	TEGRA_PINCONF_PARAM_TRISTATE,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_ENABLE_INPUT,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_OPEN_DRAIN,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_LOCK,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_IORESET,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_RCV_SEL,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_HIGH_SPEED_MODE,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_SCHMITT,
-	/* argument: Boolean */
-	TEGRA_PINCONF_PARAM_LOW_POWER_MODE,
-	/* argument: Integer, range is HW-dependant */
-	TEGRA_PINCONF_PARAM_DRIVE_DOWN_STRENGTH,
-	/* argument: Integer, range is HW-dependant */
-	TEGRA_PINCONF_PARAM_DRIVE_UP_STRENGTH,
-	/* argument: Integer, range is HW-dependant */
-	TEGRA_PINCONF_PARAM_SLEW_RATE_FALLING,
-	/* argument: Integer, range is HW-dependant */
-	TEGRA_PINCONF_PARAM_SLEW_RATE_RISING,
-	/* argument: Integer, range is HW-dependant */
-	TEGRA_PINCONF_PARAM_DRIVE_TYPE,
-};
-
-enum tegra_pinconf_pull {
-	TEGRA_PINCONFIG_PULL_NONE,
-	TEGRA_PINCONFIG_PULL_DOWN,
-	TEGRA_PINCONFIG_PULL_UP,
-};
-
-enum tegra_pinconf_tristate {
-	TEGRA_PINCONFIG_DRIVEN,
-	TEGRA_PINCONFIG_TRISTATE,
-};
-
-#define TEGRA_PINCONF_PACK(_param_, _arg_) ((_param_) << 16 | (_arg_))
-#define TEGRA_PINCONF_UNPACK_PARAM(_conf_) ((_conf_) >> 16)
-#define TEGRA_PINCONF_UNPACK_ARG(_conf_) ((_conf_) & 0xffff)
 
 /**
  * struct tegra_function - Tegra pinctrl mux function
@@ -96,18 +48,26 @@ struct tegra_function {
  * @lock_reg:		Lock register offset. -1 if unsupported.
  * @lock_bank:		Lock register bank. 0 if unsupported.
  * @lock_bit:		Lock register bit. 0 if unsupported.
+ * @parked_reg:		Parked register offset. -1 if unsupported.
+ * @parked_bank:	Parked register bank. 0 if unsupported.
+ * @parked_bit:		Parked register bit. 0 if unsupported.
  * @ioreset_reg:	IO reset register offset. -1 if unsupported.
  * @ioreset_bank:	IO reset register bank. 0 if unsupported.
  * @ioreset_bit:	IO reset register bit. 0 if unsupported.
  * @rcv_sel_reg:	Receiver select offset. -1 if unsupported.
  * @rcv_sel_bank:	Receiver select bank. 0 if unsupported.
  * @rcv_sel_bit:	Receiver select bit. 0 if unsupported.
+ * @e_io_hv_reg:	E_IO_HV register offset. -1 if unsupported.
+ * @e_io_hv_bank:	E_IO_HV register bank. 0 if unsupported.
+ * @e_io_hv_bit:	E_IO_HV register bit. 0 if unsupported.
  * @drv_reg:		Drive fields register offset. -1 if unsupported.
  *			This register contains the hsm, schmitt, lpmd, drvdn,
  *			drvup, slwr, and slwf parameters.
  * @drv_bank:		Drive fields register bank. 0 if unsupported.
  * @hsm_bit:		High Speed Mode register bit. 0 if unsupported.
+ * @hsm_reg:		High Speed Mode register offset. -1 if unsupported.
  * @schmitt_bit:	Scmitt register bit. 0 if unsupported.
+ * @schmitt_reg:	Schmitt register offset. -1 if unsupported.
  * @lpmd_bit:		Low Power Mode register bit. 0 if unsupported.
  * @drvdn_bit:		Drive Down register bit. 0 if unsupported.
  * @drvdn_width:	Drive Down field width. 0 if unsupported.
@@ -120,6 +80,7 @@ struct tegra_function {
  * @drvtype_reg:	Drive type fields register offset. -1 if unsupported.
  * @drvtype_bank:	Drive type fields register bank. 0 if unsupported.
  * @drvtype_bit:	Drive type register bit. 0 if unsupported.
+ * @drvtype_width:	Drive type field width. 0 if unsupported.
  *
  * A representation of a group of pins (possibly just one pin) in the Tegra
  * pin controller. Each group allows some parameter or parameters to be
@@ -133,47 +94,55 @@ struct tegra_pingroup {
 	const unsigned *pins;
 	unsigned npins;
 	unsigned funcs[4];
-	unsigned func_safe;
 	s16 mux_reg;
 	s16 pupd_reg;
 	s16 tri_reg;
 	s16 einput_reg;
 	s16 odrain_reg;
 	s16 lock_reg;
+	s16 parked_reg;
 	s16 ioreset_reg;
 	s16 rcv_sel_reg;
+	s16 e_io_hv_reg;
+	s16 hsm_reg;
+	s16 schmitt_reg;
 	s16 drv_reg;
 	s16 drvtype_reg;
-	u32 mux_bank:2;
-	u32 pupd_bank:2;
-	u32 tri_bank:2;
-	u32 einput_bank:2;
-	u32 odrain_bank:2;
-	u32 ioreset_bank:2;
-	u32 rcv_sel_bank:2;
-	u32 lock_bank:2;
-	u32 drv_bank:2;
-	u32 drvtype_bank:2;
-	u32 mux_bit:5;
-	u32 pupd_bit:5;
-	u32 tri_bit:5;
-	u32 einput_bit:5;
-	u32 odrain_bit:5;
-	u32 lock_bit:5;
-	u32 ioreset_bit:5;
-	u32 rcv_sel_bit:5;
-	u32 hsm_bit:5;
-	u32 schmitt_bit:5;
-	u32 lpmd_bit:5;
-	u32 drvdn_bit:5;
-	u32 drvup_bit:5;
-	u32 slwr_bit:5;
-	u32 slwf_bit:5;
-	u32 drvtype_bit:5;
-	u32 drvdn_width:6;
-	u32 drvup_width:6;
-	u32 slwr_width:6;
-	u32 slwf_width:6;
+	int mux_bank;
+	int pupd_bank;
+	int tri_bank;
+	int einput_bank;
+	int odrain_bank;
+	int ioreset_bank;
+	int rcv_sel_bank;
+	int e_io_hv_bank;
+	int lock_bank;
+	int parked_bank;
+	int drv_bank;
+	int drvtype_bank;
+	int mux_bit;
+	int pupd_bit;
+	int tri_bit;
+	int einput_bit;
+	int odrain_bit;
+	int lock_bit;
+	int parked_bit;
+	int ioreset_bit;
+	int rcv_sel_bit;
+	int e_io_hv_bit;
+	int hsm_bit;
+	int schmitt_bit;
+	int lpmd_bit;
+	int drvdn_bit;
+	int drvup_bit;
+	int slwr_bit;
+	int slwf_bit;
+	int drvtype_bit;
+	int drvdn_width;
+	int drvup_width;
+	int slwr_width;
+	int slwf_width;
+	int drvtype_width;
 };
 
 /**
@@ -188,6 +157,8 @@ struct tegra_pingroup {
  * @nfunctions:	The numbmer of entries in @functions.
  * @groups:	An array describing all pin groups the pin SoC supports.
  * @ngroups:	The numbmer of entries in @groups.
+ * @config_data: List of configuration data which is SoC specific.
+ * @nconfig_data: Number of config data.
  */
 struct tegra_pinctrl_soc_data {
 	unsigned ngpios;
@@ -197,10 +168,21 @@ struct tegra_pinctrl_soc_data {
 	unsigned nfunctions;
 	const struct tegra_pingroup *groups;
 	unsigned ngroups;
+	int (*suspend)(u32 *pg_data);
+	void (*resume)(u32 *pg_data);
+	int (*gpio_request_enable)(unsigned pin);
 };
 
 int tegra_pinctrl_probe(struct platform_device *pdev,
 			const struct tegra_pinctrl_soc_data *soc_data);
 int tegra_pinctrl_remove(struct platform_device *pdev);
+
+u32 tegra_pinctrl_readl(u32 bank, u32 reg);
+void tegra_pinctrl_writel(u32 val, u32 bank, u32 reg);
+
+/* Special pinmux options */
+#define TEGRA_PINMUX_SPECIAL_GPIO		0
+#define TEGRA_PINMUX_SPECIAL_UNUSED		1
+#define TEGRA_PINMUX_SPECIAL_MAX		2
 
 #endif

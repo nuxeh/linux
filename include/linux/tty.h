@@ -59,6 +59,7 @@ struct tty_bufhead {
 	struct tty_buffer *free;	/* Free queue head */
 	int memory_used;		/* Buffer space used excluding
 								free queue */
+	int current_data_count;		/* Current data count on the tty */
 };
 /*
  * When a break, frame error, or parity error happens, these codes are
@@ -238,7 +239,7 @@ struct tty_struct {
 	int index;
 
 	/* Protects ldisc changes: Lock tty not pty */
-	struct mutex ldisc_mutex;
+	struct ld_semaphore ldisc_sem;
 	struct tty_ldisc *ldisc;
 
 	struct mutex atomic_write_lock;
@@ -269,7 +270,7 @@ struct tty_struct {
 	void *driver_data;
 	struct list_head tty_files;
 
-#define N_TTY_BUF_SIZE 4096
+#define N_TTY_BUF_SIZE 32768
 
 	unsigned char closing:1;
 	unsigned short minimum_to_wake;
@@ -306,8 +307,6 @@ struct tty_file_private {
 #define TTY_DO_WRITE_WAKEUP 	5	/* Call write_wakeup after queuing new */
 #define TTY_PUSH 		6	/* n_tty private */
 #define TTY_CLOSING 		7	/* ->close() in progress */
-#define TTY_LDISC 		9	/* Line discipline attached */
-#define TTY_LDISC_CHANGING 	10	/* Line discipline changing */
 #define TTY_LDISC_OPEN	 	11	/* Line discipline is open */
 #define TTY_HW_COOK_OUT 	14	/* Hardware can do output cooking */
 #define TTY_HW_COOK_IN 		15	/* Hardware can do input cooking */

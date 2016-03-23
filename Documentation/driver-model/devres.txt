@@ -237,7 +237,17 @@ MEM
   devm_kzalloc()
   devm_kfree()
 
+IIO
+  devm_iio_device_alloc()
+  devm_iio_device_free()
+  devm_iio_trigger_alloc()
+  devm_iio_trigger_free()
+  devm_iio_device_register()
+  devm_iio_device_unregister()
+
 IO region
+  devm_request_resource()
+  devm_release_resource()
   devm_request_region()
   devm_request_mem_region()
   devm_release_region()
@@ -277,6 +287,7 @@ REGULATOR
   devm_regulator_get()
   devm_regulator_put()
   devm_regulator_bulk_get()
+  devm_regulator_register()
 
 CLOCK
   devm_clk_get()

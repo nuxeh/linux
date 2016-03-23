@@ -324,6 +324,11 @@ static inline struct clk *clk_get_parent(struct clk *clk)
 	return NULL;
 }
 
+static inline struct clk *clk_get_sys(const char *dev_id, const char *con_id)
+{
+	return NULL;
+}
+
 #endif
 
 /* clk_prepare_enable helps cases using clk_enable in non-atomic context. */
@@ -364,7 +369,8 @@ int clk_add_alias(const char *alias, const char *alias_dev_name, char *id,
 struct device_node;
 struct of_phandle_args;
 
-#if defined(CONFIG_OF) && defined(CONFIG_COMMON_CLK)
+#if defined(CONFIG_OF) && (defined(CONFIG_COMMON_CLK) || \
+			   defined(CONFIG_TEGRA_CLK_FRAMEWORK))
 struct clk *of_clk_get(struct device_node *np, int index);
 struct clk *of_clk_get_by_name(struct device_node *np, const char *name);
 struct clk *of_clk_get_from_provider(struct of_phandle_args *clkspec);

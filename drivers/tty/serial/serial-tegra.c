@@ -3,7 +3,7 @@
  *
  * High-speed serial driver for NVIDIA Tegra SoCs
  *
- * Copyright (c) 2012-2013, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2012-2015, NVIDIA CORPORATION.  All rights reserved.
  *
  * Author: Laxman Dewangan <ldewangan@nvidia.com>
  *
@@ -43,10 +43,11 @@
 #include <linux/termios.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
-
+#include <linux/platform_data/serial-tegra.h>
 #include <linux/clk/tegra.h>
+#include <linux/timer.h>
 
-#define TEGRA_UART_TYPE				"TEGRA_UART"
+#define TEGRA_UART_TYPE				"SERIAL_TEGRA"
 #define TX_EMPTY_STATUS				(UART_LSR_TEMT | UART_LSR_THRE)
 #define BYTES_TO_ALIGN(x)			((unsigned long)(x) & 0x3)
 
@@ -134,6 +135,10 @@ struct tegra_uart_port {
 	dma_cookie_t				rx_cookie;
 	int					tx_bytes_requested;
 	int					rx_bytes_requested;
+	bool				use_rx_pio;
+	struct timer_list           timer;
+	int                 timer_timeout_jiffies;
+	bool                enable_rx_buffer_throttle;
 };
 
 static void tegra_uart_start_next_tx(struct tegra_uart_port *tup);
@@ -265,7 +270,7 @@ static void tegra_uart_fifo_reset(struct tegra_uart_port *tup, u8 fcr_bits)
 	tegra_uart_read(tup, UART_SCR);
 
 	/* Wait for the flush to propagate. */
-	tegra_uart_wait_sym_time(tup, 1);
+	tegra_uart_wait_sym_time(tup, 2);
 }
 
 static int tegra_set_baudrate(struct tegra_uart_port *tup, unsigned int baud)
@@ -338,6 +343,8 @@ static char tegra_uart_decode_rx_error(struct tegra_uart_port *tup,
 			/* If FIFO read error without any data, reset Rx FIFO */
 			if (!(lsr & UART_LSR_DR) && (lsr & UART_LSR_FIFOE))
 				tegra_uart_fifo_reset(tup, UART_FCR_CLEAR_RCVR);
+			else if (lsr & UART_LSR_FIFOE)
+				dev_err(tup->uport.dev, "Got Receive Fifo errors\n");
 		}
 	}
 	return flag;
@@ -483,12 +490,15 @@ static void tegra_uart_stop_tx(struct uart_port *u)
 	struct dma_tx_state state;
 	int count;
 
-	dmaengine_terminate_all(tup->tx_dma_chan);
-	dmaengine_tx_status(tup->tx_dma_chan, tup->tx_cookie, &state);
-	count = tup->tx_bytes_requested - state.residue;
-	async_tx_ack(tup->tx_dma_desc);
-	xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
-	tup->tx_in_progress = 0;
+	if (tup->tx_in_progress == TEGRA_UART_TX_DMA) {
+		dmaengine_terminate_all(tup->tx_dma_chan);
+		dmaengine_tx_status(tup->tx_dma_chan, tup->tx_cookie, &state);
+		count = tup->tx_bytes_requested - state.residue;
+		async_tx_ack(tup->tx_dma_desc);
+		xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
+		tup->tx_in_progress = 0;
+	}
+
 	return;
 }
 
@@ -507,6 +517,8 @@ static void tegra_uart_handle_tx_pio(struct tegra_uart_port *tup)
 static void tegra_uart_handle_rx_pio(struct tegra_uart_port *tup,
 		struct tty_port *tty)
 {
+	int copied;
+
 	do {
 		char flag = TTY_NORMAL;
 		unsigned long lsr = 0;
@@ -520,11 +532,40 @@ static void tegra_uart_handle_rx_pio(struct tegra_uart_port *tup,
 		ch = (unsigned char) tegra_uart_read(tup, UART_RX);
 		tup->uport.icount.rx++;
 
-		if (!uart_handle_sysrq_char(&tup->uport, ch) && tty)
-			tty_insert_flip_char(tty, ch, flag);
+		if (!uart_handle_sysrq_char(&tup->uport, ch) && tty) {
+			copied = tty_insert_flip_char_lock(tty, ch, flag);
+			if (copied != 1)
+				dev_err(tup->uport.dev, "RxData PIO to tty layer failed\n");
+		}
+
 	} while (1);
 
 	return;
+}
+
+static void tegra_uart_rx_buffer_throttle_timer(unsigned long _data)
+{
+	struct tegra_uart_port *tup = (struct tegra_uart_port *)_data;
+	struct uart_port *u = &tup->uport;
+	struct tty_struct *tty = tty_port_tty_get(&tup->uport.state->port);
+	struct tty_port *port = &tup->uport.state->port;
+	int rx_level;
+	unsigned long flags;
+
+	spin_lock_irqsave(&u->lock, flags);
+
+	rx_level = tty_buffer_get_level(port);
+	if (rx_level < 30) {
+		if (tup->rts_active)
+			set_rts(tup, true);
+	} else {
+		mod_timer(&tup->timer, jiffies + tup->timer_timeout_jiffies);
+	}
+
+	if (tty)
+		tty_kref_put(tty);
+
+	spin_unlock_irqrestore(&u->lock, flags);
 }
 
 static void tegra_uart_copy_rx_to_tty(struct tegra_uart_port *tup,
@@ -539,12 +580,11 @@ static void tegra_uart_copy_rx_to_tty(struct tegra_uart_port *tup,
 	}
 	dma_sync_single_for_cpu(tup->uport.dev, tup->rx_dma_buf_phys,
 				TEGRA_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
-	copied = tty_insert_flip_string(tty,
+
+	copied = tty_insert_flip_string_lock(tty,
 			((unsigned char *)(tup->rx_dma_buf_virt)), count);
-	if (copied != count) {
-		WARN_ON(1);
-		dev_err(tup->uport.dev, "RxData copy to tty layer failed\n");
-	}
+	if (copied != count)
+		dev_err(tup->uport.dev, "RxData DMA copy to tty layer failed\n");
 	dma_sync_single_for_device(tup->uport.dev, tup->rx_dma_buf_phys,
 				TEGRA_UART_RX_DMA_BUFFER_SIZE, DMA_TO_DEVICE);
 }
@@ -557,9 +597,19 @@ static void tegra_uart_rx_dma_complete(void *args)
 	struct tty_struct *tty = tty_port_tty_get(&tup->uport.state->port);
 	struct tty_port *port = &u->state->port;
 	unsigned long flags;
+	int rx_level = 0;
+	struct dma_tx_state state;
+	enum dma_status status;
 
-	async_tx_ack(tup->rx_dma_desc);
 	spin_lock_irqsave(&u->lock, flags);
+	async_tx_ack(tup->rx_dma_desc);
+
+	status = dmaengine_tx_status(tup->rx_dma_chan,
+			tup->rx_cookie, &state);
+	if (status == DMA_IN_PROGRESS) {
+		dev_info(tup->uport.dev, "RX DMA is in progress\n");
+		goto done;
+	}
 
 	/* Deactivate flow control to stop sender */
 	if (tup->rts_active)
@@ -570,6 +620,14 @@ static void tegra_uart_rx_dma_complete(void *args)
 		tegra_uart_copy_rx_to_tty(tup, port, count);
 
 	tegra_uart_handle_rx_pio(tup, port);
+
+	if (tup->enable_rx_buffer_throttle) {
+		rx_level = tty_buffer_get_level(port);
+		if (rx_level > 70)
+			mod_timer(&tup->timer,
+					jiffies + tup->timer_timeout_jiffies);
+	}
+
 	if (tty) {
 		tty_flip_buffer_push(port);
 		tty_kref_put(tty);
@@ -577,9 +635,12 @@ static void tegra_uart_rx_dma_complete(void *args)
 	tegra_uart_start_rx_dma(tup);
 
 	/* Activate flow control to start transfer */
-	if (tup->rts_active)
+	if (tup->enable_rx_buffer_throttle) {
+		if ((rx_level <= 70) && tup->rts_active)
+			set_rts(tup, true);
+	} else if (tup->rts_active)
 		set_rts(tup, true);
-
+done:
 	spin_unlock_irqrestore(&u->lock, flags);
 }
 
@@ -589,6 +650,7 @@ static void tegra_uart_handle_rx_dma(struct tegra_uart_port *tup)
 	struct tty_struct *tty = tty_port_tty_get(&tup->uport.state->port);
 	struct tty_port *port = &tup->uport.state->port;
 	int count;
+	int rx_level = 0;
 
 	/* Deactivate flow control to stop sender */
 	if (tup->rts_active)
@@ -596,6 +658,7 @@ static void tegra_uart_handle_rx_dma(struct tegra_uart_port *tup)
 
 	dmaengine_terminate_all(tup->rx_dma_chan);
 	dmaengine_tx_status(tup->rx_dma_chan,  tup->rx_cookie, &state);
+	async_tx_ack(tup->rx_dma_desc);
 	count = tup->rx_bytes_requested - state.residue;
 
 	/* If we are here, DMA is stopped */
@@ -603,13 +666,24 @@ static void tegra_uart_handle_rx_dma(struct tegra_uart_port *tup)
 		tegra_uart_copy_rx_to_tty(tup, port, count);
 
 	tegra_uart_handle_rx_pio(tup, port);
+
+	if (tup->enable_rx_buffer_throttle) {
+		rx_level = tty_buffer_get_level(port);
+		if (rx_level > 70)
+			mod_timer(&tup->timer,
+					jiffies + tup->timer_timeout_jiffies);
+	}
+
 	if (tty) {
 		tty_flip_buffer_push(port);
 		tty_kref_put(tty);
 	}
 	tegra_uart_start_rx_dma(tup);
 
-	if (tup->rts_active)
+	if (tup->enable_rx_buffer_throttle) {
+		if ((rx_level <= 70) && tup->rts_active)
+			set_rts(tup, true);
+	} else if (tup->rts_active)
 		set_rts(tup, true);
 }
 
@@ -657,6 +731,18 @@ static void tegra_uart_handle_modem_signal_change(struct uart_port *u)
 	return;
 }
 
+static void do_handle_rx_pio(struct tegra_uart_port *tup)
+{
+	struct tty_struct *tty = tty_port_tty_get(&tup->uport.state->port);
+	struct tty_port *port = &tup->uport.state->port;
+
+	tegra_uart_handle_rx_pio(tup, port);
+	if (tty) {
+		tty_flip_buffer_push(port);
+		tty_kref_put(tty);
+	}
+}
+
 static irqreturn_t tegra_uart_isr(int irq, void *data)
 {
 	struct tegra_uart_port *tup = data;
@@ -670,7 +756,7 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 	while (1) {
 		iir = tegra_uart_read(tup, UART_IIR);
 		if (iir & UART_IIR_NO_INT) {
-			if (is_rx_int) {
+			if (!tup->use_rx_pio && is_rx_int) {
 				tegra_uart_handle_rx_dma(tup);
 				if (tup->rx_in_progress) {
 					ier = tup->ier_shadow;
@@ -698,17 +784,19 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 		case 4: /* End of data */
 		case 6: /* Rx timeout */
 		case 2: /* Receive */
-			if (!is_rx_int) {
+			if (!tup->use_rx_pio && !is_rx_int) {
 				is_rx_int = true;
 				/* Disable Rx interrupts */
 				ier = tup->ier_shadow;
 				ier |= UART_IER_RDI;
 				tegra_uart_write(tup, ier, UART_IER);
 				ier &= ~(UART_IER_RDI | UART_IER_RLSI |
-					UART_IER_RTOIE | TEGRA_UART_IER_EORD);
+						UART_IER_RTOIE |
+						TEGRA_UART_IER_EORD);
 				tup->ier_shadow = ier;
 				tegra_uart_write(tup, ier, UART_IER);
-			}
+			} else
+				do_handle_rx_pio(tup);
 			break;
 
 		case 3: /* Receive error */
@@ -748,12 +836,13 @@ static void tegra_uart_stop_rx(struct uart_port *u)
 	tup->ier_shadow = ier;
 	tegra_uart_write(tup, ier, UART_IER);
 	tup->rx_in_progress = 0;
-	if (tup->rx_dma_chan) {
+	if (tup->rx_dma_chan && !tup->use_rx_pio) {
 		dmaengine_terminate_all(tup->rx_dma_chan);
 		dmaengine_tx_status(tup->rx_dma_chan, tup->rx_cookie, &state);
 		async_tx_ack(tup->rx_dma_desc);
 		count = tup->rx_bytes_requested - state.residue;
-		tegra_uart_copy_rx_to_tty(tup, port, count);
+		if (count)
+			tegra_uart_copy_rx_to_tty(tup, port, count);
 		tegra_uart_handle_rx_pio(tup, port);
 	} else {
 		tegra_uart_handle_rx_pio(tup, port);
@@ -852,24 +941,32 @@ static int tegra_uart_hw_init(struct tegra_uart_port *tup)
 	 * programmed in the DMA registers.
 	 */
 	tup->fcr_shadow = UART_FCR_ENABLE_FIFO;
-	tup->fcr_shadow |= UART_FCR_R_TRIG_01;
+	if (tup->use_rx_pio)
+		tup->fcr_shadow |= UART_FCR_R_TRIG_11;
+	else
+		tup->fcr_shadow |= UART_FCR_R_TRIG_01;
 	tup->fcr_shadow |= TEGRA_UART_TX_TRIG_16B;
 	tegra_uart_write(tup, tup->fcr_shadow, UART_FCR);
 
+	mdelay(3);
 	/*
 	 * Initialize the UART with default configuration
 	 * (115200, N, 8, 1) so that the receive DMA buffer may be
 	 * enqueued
 	 */
-	tup->lcr_shadow = TEGRA_UART_DEFAULT_LSR;
-	tegra_set_baudrate(tup, TEGRA_UART_DEFAULT_BAUD);
-	tup->fcr_shadow |= UART_FCR_DMA_SELECT;
-	tegra_uart_write(tup, tup->fcr_shadow, UART_FCR);
+	if (!tup->use_rx_pio) {
+		tup->lcr_shadow = TEGRA_UART_DEFAULT_LSR;
+		tegra_set_baudrate(tup, TEGRA_UART_DEFAULT_BAUD);
+		tup->fcr_shadow |= UART_FCR_DMA_SELECT;
+		tegra_uart_write(tup, tup->fcr_shadow, UART_FCR);
 
-	ret = tegra_uart_start_rx_dma(tup);
-	if (ret < 0) {
-		dev_err(tup->uport.dev, "Not able to start Rx DMA\n");
-		return ret;
+		ret = tegra_uart_start_rx_dma(tup);
+		if (ret < 0) {
+			dev_err(tup->uport.dev, "Not able to start Rx DMA\n");
+			return ret;
+		}
+	} else {
+		tegra_uart_write(tup, tup->fcr_shadow, UART_FCR);
 	}
 	tup->rx_in_progress = 1;
 
@@ -891,7 +988,12 @@ static int tegra_uart_hw_init(struct tegra_uart_port *tup)
 	 * both the EORD as well as RX_TIMEOUT - SW sees RX_TIMEOUT first
 	 * then the EORD.
 	 */
-	tup->ier_shadow = UART_IER_RLSI | UART_IER_RTOIE | TEGRA_UART_IER_EORD;
+	if (!tup->use_rx_pio)
+		tup->ier_shadow = UART_IER_RLSI | UART_IER_RTOIE |
+			TEGRA_UART_IER_EORD;
+	else
+		tup->ier_shadow = UART_IER_RLSI | UART_IER_RTOIE | UART_IER_RDI;
+
 	tegra_uart_write(tup, tup->ier_shadow, UART_IER);
 	return 0;
 }
@@ -904,15 +1006,25 @@ static int tegra_uart_dma_channel_allocate(struct tegra_uart_port *tup,
 	dma_addr_t dma_phys;
 	int ret;
 	struct dma_slave_config dma_sconfig;
-	dma_cap_mask_t mask;
 
-	dma_cap_zero(mask);
-	dma_cap_set(DMA_SLAVE, mask);
-	dma_chan = dma_request_channel(mask, NULL, NULL);
-	if (!dma_chan) {
+	if (!tup->uport.dev->of_node) {
+		dma_cap_mask_t mask;
+		dma_sconfig.slave_id = tup->dma_req_sel;
+		dma_cap_zero(mask);
+		dma_cap_set(DMA_SLAVE, mask);
+		dma_chan = dma_request_channel(mask, NULL, NULL);
+		if (!dma_chan)
+			dma_chan = ERR_PTR(-EINVAL);
+	} else {
+		dma_chan = dma_request_slave_channel_reason(tup->uport.dev,
+						dma_to_memory ? "rx" : "tx");
+	}
+
+	if (IS_ERR(dma_chan)) {
+		ret = PTR_ERR(dma_chan);
 		dev_err(tup->uport.dev,
-			"Dma channel is not available, will try later\n");
-		return -EPROBE_DEFER;
+			"DMA channel alloc failed: %d\n", ret);
+		return ret;
 	}
 
 	if (dma_to_memory) {
@@ -932,7 +1044,6 @@ static int tegra_uart_dma_channel_allocate(struct tegra_uart_port *tup,
 		dma_buf = tup->uport.state->xmit.buf;
 	}
 
-	dma_sconfig.slave_id = tup->dma_req_sel;
 	if (dma_to_memory) {
 		dma_sconfig.src_addr = tup->uport.mapbase;
 		dma_sconfig.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
@@ -1000,10 +1111,13 @@ static int tegra_uart_startup(struct uart_port *u)
 		return ret;
 	}
 
-	ret = tegra_uart_dma_channel_allocate(tup, true);
-	if (ret < 0) {
-		dev_err(u->dev, "Rx Dma allocation failed, err = %d\n", ret);
-		goto fail_rx_dma;
+	if (!tup->use_rx_pio) {
+		ret = tegra_uart_dma_channel_allocate(tup, true);
+		if (ret < 0) {
+			dev_err(u->dev, "Rx Dma allocation failed, err = %d\n",
+					ret);
+			goto fail_rx_dma;
+		}
 	}
 
 	ret = tegra_uart_hw_init(tup);
@@ -1021,7 +1135,8 @@ static int tegra_uart_startup(struct uart_port *u)
 	return 0;
 
 fail_hw_init:
-	tegra_uart_dma_channel_free(tup, true);
+	if (!tup->use_rx_pio)
+		tegra_uart_dma_channel_free(tup, true);
 fail_rx_dma:
 	tegra_uart_dma_channel_free(tup, false);
 	return ret;
@@ -1036,7 +1151,8 @@ static void tegra_uart_shutdown(struct uart_port *u)
 	tup->rx_in_progress = 0;
 	tup->tx_in_progress = 0;
 
-	tegra_uart_dma_channel_free(tup, true);
+	if (!tup->use_rx_pio)
+		tegra_uart_dma_channel_free(tup, true);
 	tegra_uart_dma_channel_free(tup, false);
 	free_irq(u->irq, tup);
 }
@@ -1206,9 +1322,9 @@ static struct uart_ops tegra_uart_ops = {
 
 static struct uart_driver tegra_uart_driver = {
 	.owner		= THIS_MODULE,
-	.driver_name	= "tegra_hsuart",
+	.driver_name	= "serial-hs-tegra",
 	.dev_name	= "ttyTHS",
-	.cons		= 0,
+	.cons		= NULL,
 	.nr		= TEGRA_UART_MAXIMUM,
 };
 
@@ -1216,16 +1332,8 @@ static int tegra_uart_parse_dt(struct platform_device *pdev,
 	struct tegra_uart_port *tup)
 {
 	struct device_node *np = pdev->dev.of_node;
-	u32 of_dma[2];
 	int port;
-
-	if (of_property_read_u32_array(np, "nvidia,dma-request-selector",
-				of_dma, 2) >= 0) {
-		tup->dma_req_sel = of_dma[1];
-	} else {
-		dev_err(&pdev->dev, "missing dma requestor in device tree\n");
-		return -EINVAL;
-	}
+	int index;
 
 	port = of_alias_get_id(np, "serial");
 	if (port < 0) {
@@ -1236,16 +1344,33 @@ static int tegra_uart_parse_dt(struct platform_device *pdev,
 
 	tup->enable_modem_interrupt = of_property_read_bool(np,
 					"nvidia,enable-modem-interrupt");
+
+	index = of_property_match_string(np, "dma-names", "rx");
+	if (index < 0) {
+		tup->use_rx_pio = true;
+		dev_info(&pdev->dev, "RX in PIO mode\n");
+	}
+	tup->enable_rx_buffer_throttle = of_property_read_bool(np,
+			"nvidia,enable-rx-buffer-throttling");
+	if (tup->enable_rx_buffer_throttle)
+		dev_info(&pdev->dev, "Rx buffer throttling enabled\n");
+
 	return 0;
 }
 
-struct tegra_uart_chip_data tegra20_uart_chip_data = {
+static struct tegra_uart_chip_data tegra20_uart_chip_data = {
 	.tx_fifo_full_status		= false,
 	.allow_txfifo_reset_fifo_mode	= true,
 	.support_clk_src_div		= false,
 };
 
-struct tegra_uart_chip_data tegra30_uart_chip_data = {
+static struct tegra_uart_chip_data tegra30_uart_chip_data = {
+	.tx_fifo_full_status		= true,
+	.allow_txfifo_reset_fifo_mode	= false,
+	.support_clk_src_div		= true,
+};
+
+static struct tegra_uart_chip_data tegra114_uart_chip_data = {
 	.tx_fifo_full_status		= true,
 	.allow_txfifo_reset_fifo_mode	= false,
 	.support_clk_src_div		= true,
@@ -1259,6 +1384,18 @@ static struct of_device_id tegra_uart_of_match[] = {
 		.compatible	= "nvidia,tegra20-hsuart",
 		.data		= &tegra20_uart_chip_data,
 	}, {
+		.compatible     = "nvidia,tegra114-hsuart",
+		.data		= &tegra114_uart_chip_data,
+	}, {
+		.compatible	= "nvidia,tegra30-hs-serial",
+		.data		= &tegra30_uart_chip_data,
+	}, {
+		.compatible	= "nvidia,tegra20-hs-serial",
+		.data		= &tegra20_uart_chip_data,
+	}, {
+		.compatible     = "nvidia,tegra114-hs-serial",
+		.data		= &tegra114_uart_chip_data,
+	}, {
 	},
 };
 MODULE_DEVICE_TABLE(of, tegra_uart_of_match);
@@ -1269,25 +1406,37 @@ static int tegra_uart_probe(struct platform_device *pdev)
 	struct uart_port *u;
 	struct resource *resource;
 	int ret;
-	const struct tegra_uart_chip_data *cdata;
-	const struct of_device_id *match;
+	const struct tegra_uart_chip_data *cdata = &tegra30_uart_chip_data;
+	const struct of_device_id *match = NULL;
+	struct tegra_serial_platform_data *pdata = pdev->dev.platform_data;
 
-	match = of_match_device(tegra_uart_of_match, &pdev->dev);
+	if (!pdev->dev.of_node)
+		goto board_file;
+
+	match = of_match_device(of_match_ptr(tegra_uart_of_match),
+				&pdev->dev);
 	if (!match) {
 		dev_err(&pdev->dev, "Error: No device match found\n");
 		return -ENODEV;
 	}
 	cdata = match->data;
 
+board_file:
 	tup = devm_kzalloc(&pdev->dev, sizeof(*tup), GFP_KERNEL);
 	if (!tup) {
 		dev_err(&pdev->dev, "Failed to allocate memory for tup\n");
 		return -ENOMEM;
 	}
 
-	ret = tegra_uart_parse_dt(pdev, tup);
-	if (ret < 0)
-		return ret;
+	if (match) {
+		ret = tegra_uart_parse_dt(pdev, tup);
+		if (ret < 0)
+			return ret;
+	} else {
+		tup->uport.line = pdev->id;
+		tup->enable_modem_interrupt = pdata->modem_interrupt;
+		tup->dma_req_sel = pdata->dma_req_selector;
+	}
 
 	u = &tup->uport;
 	u->dev = &pdev->dev;
@@ -1321,6 +1470,12 @@ static int tegra_uart_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to add uart port, err %d\n", ret);
 		return ret;
+	}
+
+	if (tup->enable_rx_buffer_throttle) {
+		setup_timer(&tup->timer, tegra_uart_rx_buffer_throttle_timer,
+				(unsigned long)tup);
+		tup->timer_timeout_jiffies = msecs_to_jiffies(10);
 	}
 	return ret;
 }
@@ -1361,7 +1516,7 @@ static struct platform_driver tegra_uart_platform_driver = {
 	.remove		= tegra_uart_remove,
 	.driver		= {
 		.name	= "serial-tegra",
-		.of_match_table = tegra_uart_of_match,
+		.of_match_table = of_match_ptr(tegra_uart_of_match),
 		.pm	= &tegra_uart_pm_ops,
 	},
 };

@@ -11,19 +11,7 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/cpufreq.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/kernel_stat.h>
-#include <linux/kobject.h>
-#include <linux/module.h>
-#include <linux/mutex.h>
-#include <linux/notifier.h>
-#include <linux/percpu-defs.h>
 #include <linux/slab.h>
-#include <linux/sysfs.h>
-#include <linux/types.h>
-
 #include "cpufreq_governor.h"
 
 /* Conservative governor macros */
@@ -62,6 +50,7 @@ static void cs_check_cpu(int cpu, unsigned int load)
 	struct cpufreq_policy *policy = dbs_info->cdbs.cur_policy;
 	struct dbs_data *dbs_data = policy->governor_data;
 	struct cs_dbs_tuners *cs_tuners = dbs_data->tuners;
+	unsigned int freq_target;
 
 	/*
 	 * break out if we 'cannot' reduce the speed as the user might
@@ -79,8 +68,6 @@ static void cs_check_cpu(int cpu, unsigned int load)
 			return;
 
 		dbs_info->requested_freq += get_freq_target(cs_tuners, policy);
-		if (dbs_info->requested_freq > policy->max)
-			dbs_info->requested_freq = policy->max;
 
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,
 			CPUFREQ_RELATION_H);
@@ -100,8 +87,10 @@ static void cs_check_cpu(int cpu, unsigned int load)
 		if (policy->cur == policy->min)
 			return;
 
-		dbs_info->requested_freq -= get_freq_target(cs_tuners, policy);
-		if (dbs_info->requested_freq < policy->min)
+		freq_target = get_freq_target(cs_tuners, policy);
+		if (dbs_info->requested_freq > freq_target) {
+			dbs_info->requested_freq -= freq_target;
+		} else
 			dbs_info->requested_freq = policy->min;
 
 		__cpufreq_driver_target(policy, dbs_info->requested_freq,

@@ -2,6 +2,7 @@
  * xHCI host controller driver
  *
  * Copyright (C) 2008 Intel Corp.
+ * Copyright (c) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * Author: Sarah Sharp
  * Some code borrowed from the Linux EHCI driver.
@@ -1320,6 +1321,7 @@ int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flags)
 
 	urb_priv->length = size;
 	urb_priv->td_cnt = 0;
+	urb_priv->finishing_short_td = false;
 	urb->hcpriv = urb_priv;
 
 	if (usb_endpoint_xfer_control(&urb->ep->desc)) {
@@ -1618,8 +1620,10 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	     cpu_to_le32(EP_STATE_DISABLED)) ||
 	    le32_to_cpu(ctrl_ctx->drop_flags) &
 	    xhci_get_endpoint_flag(&ep->desc)) {
-		xhci_warn(xhci, "xHCI %s called with disabled ep %p\n",
-				__func__, ep);
+		/* Do not warn when called after a usb_device_reset */
+		if (xhci->devs[udev->slot_id]->eps[ep_index].ring != NULL)
+			xhci_warn(xhci, "xHCI %s called with disabled ep %p\n",
+				  __func__, ep);
 		return 0;
 	}
 
@@ -2553,6 +2557,21 @@ static int xhci_reserve_bandwidth(struct xhci_hcd *xhci,
 	return -ENOMEM;
 }
 
+static int check_stop_cmd_completed(struct xhci_hcd *xhci)
+{
+	int timecount = 0;
+	while ((timecount < 10) &&
+			(xhci->cmd_ring_state != CMD_RING_STATE_RUNNING)) {
+		msleep(20);
+		timecount++;
+	}
+	if ((timecount == 10) &&
+			(xhci->cmd_ring_state != CMD_RING_STATE_RUNNING)) {
+		xhci_err(xhci, "Timeout waiting for stop cmd command\n");
+		return -ETIME;
+	}
+	return 0;
+}
 
 /* Issue a configure endpoint command or evaluate context command
  * and wait for it to finish.
@@ -2605,6 +2624,7 @@ static int xhci_configure_endpoint(struct xhci_hcd *xhci,
 		cmd_completion = &virt_dev->cmd_completion;
 		cmd_status = &virt_dev->cmd_status;
 	}
+	*cmd_status = 0;
 	init_completion(cmd_completion);
 
 	cmd_trb = xhci_find_next_enqueue(xhci->cmd_ring);
@@ -2640,7 +2660,17 @@ static int xhci_configure_endpoint(struct xhci_hcd *xhci,
 		ret = xhci_cancel_cmd(xhci, command, cmd_trb);
 		if (ret < 0)
 			return ret;
-		return -ETIME;
+		/*
+		 * 1. wait for stop cmd finish
+		 * 2. check cmd_status for configure ep command result
+		 * 2.a if cmd_status is not zero, then continue
+		 *     (if cmd_status is not zero indicate configure ep
+		 *     command finish before cmd abort/stop)
+		 * 2.b Else return with error, -ETIME
+		 * */
+		ret = check_stop_cmd_completed(xhci);
+		if ((ret < 0) || (*cmd_status == 0))
+			return -ETIME;
 	}
 
 	if (!ctx_change)
@@ -2699,8 +2729,11 @@ int xhci_check_bandwidth(struct usb_hcd *hcd, struct usb_device *udev)
 
 	/* Don't issue the command if there's no endpoints to update. */
 	if (ctrl_ctx->add_flags == cpu_to_le32(SLOT_FLAG) &&
-			ctrl_ctx->drop_flags == 0)
+			ctrl_ctx->drop_flags == 0) {
+		/* Clear add_flag, prevent misused in later drop_endpoint */
+		ctrl_ctx->add_flags = 0;
 		return 0;
+	}
 
 	xhci_dbg(xhci, "New Input Control Context:\n");
 	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->in_ctx);
@@ -3503,12 +3536,12 @@ void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_virt_device *virt_dev;
-	struct device *dev = hcd->self.controller;
 	unsigned long flags;
 	u32 state;
 	int i, ret;
 
 #ifndef CONFIG_USB_DEFAULT_PERSIST
+	struct device *dev = hcd->self.controller;
 	/*
 	 * We called pm_runtime_get_noresume when the device was attached.
 	 * Decrement the counter here to allow controller to runtime suspend
@@ -3589,7 +3622,9 @@ static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+#ifndef CONFIG_USB_DEFAULT_PERSIST
 	struct device *dev = hcd->self.controller;
+#endif
 	unsigned long flags;
 	int timeleft;
 	int ret;
@@ -4669,7 +4704,6 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	struct xhci_hcd		*xhci;
 	struct device		*dev = hcd->self.controller;
 	int			retval;
-	u32			temp;
 
 	/* Accept arbitrarily long scatter-gather lists */
 	hcd->self.sg_tablesize = ~0;
@@ -4697,14 +4731,14 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		/* xHCI private pointer was set in xhci_pci_probe for the second
 		 * registered roothub.
 		 */
+		u32 temp;
 		xhci = hcd_to_xhci(hcd);
 		temp = xhci_readl(xhci, &xhci->cap_regs->hcc_params);
-		if (HCC_64BIT_ADDR(temp)) {
-			xhci_dbg(xhci, "Enabling 64-bit DMA addresses.\n");
+		if (HCC_64BIT_ADDR(temp))
 			dma_set_mask(hcd->self.controller, DMA_BIT_MASK(64));
-		} else {
+		else
 			dma_set_mask(hcd->self.controller, DMA_BIT_MASK(32));
-		}
+
 		return 0;
 	}
 
@@ -4743,12 +4777,12 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		goto error;
 	xhci_dbg(xhci, "Reset complete\n");
 
-	temp = xhci_readl(xhci, &xhci->cap_regs->hcc_params);
-	if (HCC_64BIT_ADDR(temp)) {
+	/* Set dma_mask and coherent_dma_mask to 64-bits,
+	 * if xHC supports 64-bit addressing */
+	if (HCC_64BIT_ADDR(xhci->hcc_params) &&
+			!dma_set_mask(dev, DMA_BIT_MASK(64))) {
 		xhci_dbg(xhci, "Enabling 64-bit DMA addresses.\n");
-		dma_set_mask(hcd->self.controller, DMA_BIT_MASK(64));
-	} else {
-		dma_set_mask(hcd->self.controller, DMA_BIT_MASK(32));
+		dma_set_coherent_mask(dev, DMA_BIT_MASK(64));
 	}
 
 	xhci_dbg(xhci, "Calling HCD init\n");
@@ -4762,6 +4796,11 @@ error:
 	kfree(xhci);
 	return retval;
 }
+
+#ifdef CONFIG_TEGRA_XUSB_PLATFORM
+#include "xhci-tegra.c"
+#define PLATFORM_DRIVER	tegra_xhci_driver
+#endif
 
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_AUTHOR(DRIVER_AUTHOR);
@@ -4781,6 +4820,15 @@ static int __init xhci_hcd_init(void)
 		printk(KERN_DEBUG "Problem registering platform driver.");
 		goto unreg_pci;
 	}
+
+#ifdef CONFIG_TEGRA_XUSB_PLATFORM
+	retval = tegra_xhci_register_plat();
+	if (retval < 0) {
+		printk(KERN_DEBUG "Problem registering platform driver.");
+		goto unreg_pci;
+	}
+#endif
+
 	/*
 	 * Check the compiler generated sizes of structures that must be laid
 	 * out in specific ways for hardware access.
@@ -4809,5 +4857,8 @@ static void __exit xhci_hcd_cleanup(void)
 {
 	xhci_unregister_pci();
 	xhci_unregister_plat();
+#ifdef CONFIG_TEGRA_XUSB_PLATFORM
+	tegra_xhci_unregister_plat();
+#endif
 }
 module_exit(xhci_hcd_cleanup);

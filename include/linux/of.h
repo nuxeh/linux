@@ -67,11 +67,23 @@ struct device_node {
 #endif
 };
 
-#define MAX_PHANDLE_ARGS 8
+#define MAX_PHANDLE_ARGS 16
 struct of_phandle_args {
 	struct device_node *np;
 	int args_count;
 	uint32_t args[MAX_PHANDLE_ARGS];
+};
+
+/*
+ * keep the state at iterating a list of phandles with variable number
+ * of args
+ */
+struct of_phandle_iter {
+	const __be32 *cur; /* current phandle */
+	const __be32 *end; /* end of the last phandle */
+	const char *cells_name;
+	int cell_count;
+	struct of_phandle_args out_args;
 };
 
 #ifdef CONFIG_OF_DYNAMIC
@@ -281,8 +293,15 @@ extern int of_parse_phandle_with_args(const struct device_node *np,
 extern int of_count_phandle_with_args(const struct device_node *np,
 	const char *list_name, const char *cells_name);
 
+extern void of_phandle_iter_start(struct of_phandle_iter *iter,
+				  const struct device_node *np,
+				  const char *list_name,
+				  const char *cells_name, int cell_count);
+extern void of_phandle_iter_next(struct of_phandle_iter *iter);
+
 extern void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align));
 extern int of_alias_get_id(struct device_node *np, const char *stem);
+extern int of_alias_get_max_id(const char *stem);
 
 extern int of_machine_is_compatible(const char *compat);
 
@@ -340,6 +359,12 @@ const char *of_prop_next_string(struct property *prop, const char *cur);
 		s = of_prop_next_string(prop, NULL);		\
 		s;						\
 		s = of_prop_next_string(prop, s))
+
+#define of_property_for_each_phandle_with_args(iter, np, list_name,	\
+					       cells_name, cell_count)	\
+	for (of_phandle_iter_start(&iter, np, list_name,		\
+				   cells_name, cell_count);		\
+	     iter.cur; of_phandle_iter_next(&iter))
 
 #else /* CONFIG_OF */
 
@@ -487,9 +512,26 @@ static inline int of_count_phandle_with_args(struct device_node *np,
 	return -ENOSYS;
 }
 
+static inline void of_phandle_iter_start(struct of_phandle_iter *iter,
+					 const struct device_node *np,
+					 const char *list_name,
+					 const char *cells_name,
+					 int cell_count);
+{
+}
+
+static inline void of_phandle_iter_next(struct of_phandle_iter *iter)
+{
+}
+
 static inline int of_alias_get_id(struct device_node *np, const char *stem)
 {
 	return -ENOSYS;
+}
+
+static inline int of_alias_get_max_id(const char *stem)
+{
+	return -ENODEV;
 }
 
 static inline int of_machine_is_compatible(const char *compat)
@@ -613,6 +655,33 @@ static inline int of_property_read_u32(const struct device_node *np,
 				       u32 *out_value)
 {
 	return of_property_read_u32_array(np, propname, out_value, 1);
+}
+
+static inline int of_property_count_u32(const struct device_node *np,
+				       const char *propname)
+{
+	const void *prop_ptr;
+	int prop_len;
+
+	prop_ptr = of_get_property(np, propname, &prop_len);
+	if (!prop_ptr)
+		return -EINVAL;
+
+	return prop_len / sizeof(u32);
+}
+
+static inline int of_property_read_s32(const struct device_node *np,
+					const char *propname,
+					s32 *out_value)
+{
+	u32 val;
+	int ret;
+
+	ret = of_property_read_u32(np, propname, &val);
+	if (ret < 0)
+		return ret;
+	*out_value = (val & 0x80000000U) ? -((val ^ 0xFFFFFFFFU) + 1) : val;
+	return ret;
 }
 
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_PROC_DEVICETREE)

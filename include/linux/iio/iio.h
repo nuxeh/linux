@@ -2,6 +2,7 @@
 /* The industrial I/O core
  *
  * Copyright (c) 2008 Jonathan Cameron
+ * Copyright (c) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -22,6 +23,8 @@
 enum iio_chan_info_enum {
 	IIO_CHAN_INFO_RAW = 0,
 	IIO_CHAN_INFO_PROCESSED,
+	IIO_CHAN_INFO_RAW_DUAL,
+	IIO_CHAN_INFO_PROCESSED_DUAL,
 	IIO_CHAN_INFO_SCALE,
 	IIO_CHAN_INFO_OFFSET,
 	IIO_CHAN_INFO_CALIBSCALE,
@@ -36,6 +39,12 @@ enum iio_chan_info_enum {
 	IIO_CHAN_INFO_PHASE,
 	IIO_CHAN_INFO_HARDWAREGAIN,
 	IIO_CHAN_INFO_HYSTERESIS,
+	IIO_CHAN_INFO_THRESHOLD_LOW,
+	IIO_CHAN_INFO_THRESHOLD_HIGH,
+	IIO_CHAN_INFO_BATCH_FLAGS,
+	IIO_CHAN_INFO_BATCH_PERIOD,
+	IIO_CHAN_INFO_BATCH_TIMEOUT,
+	IIO_CHAN_INFO_BATCH_FLUSH,
 };
 
 enum iio_endian {
@@ -417,6 +426,8 @@ struct iio_dev {
 	struct dentry			*debugfs_dentry;
 	unsigned			cached_reg_addr;
 #endif
+	bool				multi_link;
+	char				*link_name;
 };
 
 /**
@@ -439,6 +450,9 @@ int iio_device_register(struct iio_dev *indio_dev);
  **/
 void iio_device_unregister(struct iio_dev *indio_dev);
 
+int devm_iio_device_register(struct device *dev, struct iio_dev *indio_dev);
+void devm_iio_device_unregister(struct device *dev, struct iio_dev *indio_dev);
+
 /**
  * iio_push_event() - try to add event to the list for userspace reading
  * @indio_dev:		IIO device structure
@@ -448,6 +462,7 @@ void iio_device_unregister(struct iio_dev *indio_dev);
 int iio_push_event(struct iio_dev *indio_dev, u64 ev_code, s64 timestamp);
 
 extern struct bus_type iio_bus_type;
+extern const char * const iio_chan_type_name_spec[];
 
 /**
  * iio_device_put() - reference counted deallocation of struct device
@@ -530,6 +545,31 @@ static inline struct iio_dev *iio_priv_to_dev(void *priv)
  * @indio_dev: 		the iio_dev associated with the device
  **/
 void iio_device_free(struct iio_dev *indio_dev);
+
+/**
+ * devm_iio_device_alloc - Resource-managed iio_device_alloc()
+ * @dev: 		Device to allocate iio_dev for
+ * @sizeof_priv: 	Space to allocate for private structure.
+ *
+ * Managed iio_device_alloc.  iio_dev allocated with this function is
+ * automatically freed on driver detach.
+ *
+ * If an iio_dev allocated with this function needs to be freed separately,
+ * devm_iio_device_free() must be used.
+ *
+ * RETURNS:
+ * Pointer to allocated iio_dev on success, NULL on failure.
+ */
+struct iio_dev *devm_iio_device_alloc(struct device *dev, int sizeof_priv);
+
+/**
+ * devm_iio_device_free - Resource-managed iio_device_free()
+ * @dev:		Device this iio_dev belongs to
+ * @indio_dev: 		the iio_dev associated with the device
+ *
+ * Free indio_dev allocated with devm_iio_device_alloc().
+ */
+void devm_iio_device_free(struct device *dev, struct iio_dev *iio_dev);
 
 /**
  * iio_buffer_enabled() - helper function to test if the buffer is enabled

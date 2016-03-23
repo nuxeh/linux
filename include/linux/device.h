@@ -39,6 +39,7 @@ struct bus_type;
 struct device_node;
 struct iommu_ops;
 struct iommu_group;
+struct dma_iommu_mapping;
 
 struct bus_attribute {
 	struct attribute	attr;
@@ -110,7 +111,6 @@ struct bus_type {
 	const struct dev_pm_ops *pm;
 
 	struct iommu_ops *iommu_ops;
-
 	struct subsys_private *p;
 	struct lock_class_key lock_key;
 };
@@ -225,6 +225,7 @@ struct device_driver {
 	int (*probe) (struct device *dev);
 	int (*remove) (struct device *dev);
 	void (*shutdown) (struct device *dev);
+	void (*late_shutdown) (struct device *dev);
 	int (*suspend) (struct device *dev, pm_message_t state);
 	int (*resume) (struct device *dev);
 	const struct attribute_group **groups;

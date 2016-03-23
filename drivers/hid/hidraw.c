@@ -7,6 +7,7 @@
  * use a transport-specific userspace libhid/libusb libraries.
  *
  *  Copyright (c) 2007 Jiri Kosina
+ * Copyright (c) 2014-2015, NVIDIA CORPORATION.  All rights reserved.
  */
 
 /*
@@ -182,6 +183,11 @@ static ssize_t hidraw_get_report(struct file *file, char __user *buffer, size_t 
 	int ret = 0, len;
 	unsigned char report_number;
 
+	if (!hidraw_table[minor] || !hidraw_table[minor]->exist) {
+		ret = -ENODEV;
+		goto out;
+	}
+
 	dev = hidraw_table[minor]->hid;
 
 	if (!dev->hid_get_raw_report) {
@@ -305,18 +311,26 @@ static int hidraw_fasync(int fd, struct file *file, int on)
 static void drop_ref(struct hidraw *hidraw, int exists_bit)
 {
 	if (exists_bit) {
-		hid_hw_close(hidraw->hid);
 		hidraw->exist = 0;
-		if (hidraw->open)
+		if (hidraw->open) {
+			hid_hw_close(hidraw->hid);
 			wake_up_interruptible(&hidraw->wait);
+		}
 	} else {
 		--hidraw->open;
 	}
 
-	if (!hidraw->open && !hidraw->exist) {
-		device_destroy(hidraw_class, MKDEV(hidraw_major, hidraw->minor));
-		hidraw_table[hidraw->minor] = NULL;
-		kfree(hidraw);
+	if (!hidraw->open) {
+		if (!hidraw->exist) {
+			device_destroy(hidraw_class,
+				MKDEV(hidraw_major, hidraw->minor));
+			hidraw_table[hidraw->minor] = NULL;
+			kfree(hidraw);
+		} else {
+			/* close device for last reader */
+			hid_hw_power(hidraw->hid, PM_HINT_NORMAL);
+			hid_hw_close(hidraw->hid);
+		}
 	}
 }
 
@@ -324,8 +338,13 @@ static int hidraw_release(struct inode * inode, struct file * file)
 {
 	unsigned int minor = iminor(inode);
 	struct hidraw_list *list = file->private_data;
+	int i;
 
 	mutex_lock(&minors_lock);
+
+	for (i = 0; i < HIDRAW_BUFFER_SIZE; i++) {
+		kfree(list->buffer[i].value);
+	}
 
 	list_del(&list->node);
 	kfree(list);
@@ -463,6 +482,7 @@ int hidraw_report_event(struct hid_device *hid, u8 *data, int len)
 		if (new_head == list->tail)
 			continue;
 
+		kfree(list->buffer[list->head].value);
 		if (!(list->buffer[list->head].value = kmemdup(data, len, GFP_ATOMIC))) {
 			ret = -ENOMEM;
 			break;

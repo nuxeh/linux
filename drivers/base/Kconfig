@@ -2,7 +2,6 @@ menu "Generic Driver Options"
 
 config UEVENT_HELPER_PATH
 	string "path to uevent helper"
-	depends on HOTPLUG
 	default ""
 	help
 	  Path to uevent helper program forked by the kernel for
@@ -23,7 +22,6 @@ config UEVENT_HELPER_PATH
 
 config DEVTMPFS
 	bool "Maintain a devtmpfs filesystem to mount at /dev"
-	depends on HOTPLUG
 	help
 	  This creates a tmpfs/ramfs filesystem instance early at bootup.
 	  In this filesystem, the kernel driver core maintains device
@@ -187,6 +185,14 @@ config GENERIC_CPU_DEVICES
 	bool
 	default n
 
+config HAVE_CPU_AUTOPROBE
+	def_bool ARCH_HAS_CPU_AUTOPROBE
+
+config GENERIC_CPU_AUTOPROBE
+	bool
+	depends on !ARCH_HAS_CPU_AUTOPROBE
+	select HAVE_CPU_AUTOPROBE
+
 config SOC_BUS
 	bool
 
@@ -201,6 +207,15 @@ config DMA_SHARED_BUFFER
 	  multiple drivers. A buffer is associated with a file using driver
 	  APIs extension; the file's descriptor can then be passed on to other
 	  driver.
+
+config DMABUF_LAZY_UNMAPPING
+	bool "Lazy unmapping for shared DMA buffer"
+	depends on DMA_SHARED_BUFFER
+	help
+	  This option enables the buffer-sharing framework to use lazy unmapping.
+	  Buffer mappings would be reused and kept repeatedly until dmabuf refcount
+	  rearchs zero. Currently this is configured statically only by this kernel
+	  config.
 
 config CMA
 	bool "Contiguous Memory Allocator"
@@ -291,5 +306,9 @@ config CMA_AREAS
 	  If unsure, leave the default value "7".
 
 endif
+
+config PLATFORM_ENABLE_IOMMU
+        bool "Make platform devices iommuable"
+	depends on IOMMU_API
 
 endmenu

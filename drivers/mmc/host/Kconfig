@@ -178,6 +178,15 @@ config MMC_SDHCI_TEGRA
 
 	  If unsure, say N.
 
+config MMC_SDHCI_TEGRA_HS200_DISABLE
+	tristate "Mask HS200 mode support in Tegra SDHCI"
+	depends on MMC_SDHCI_TEGRA
+	help
+	  If you need to disable the default HS200 mode for EMMC and
+	  use DDR50 mode please select this mode.
+
+	  If unsure, say N.
+
 config MMC_SDHCI_S3C
 	tristate "SDHCI support on Samsung S3C SoC"
 	depends on MMC_SDHCI && PLAT_SAMSUNG
@@ -646,3 +655,29 @@ config MMC_REALTEK_PCI
 	help
 	  Say Y here to include driver code to support SD/MMC card interface
 	  of Realtek PCI-E card reader
+
+config MMC_RTPM
+	bool "Enable Run time Power Management only SD/MMC/SDIO devices"
+	depends on PM_RUNTIME
+	default N
+	help
+	  If you say Y here, the MMC layer RTPM support will be enabled
+	  for  SD/MMC/SDIO device.
+
+	  Note: Run time Power Management for SDHCI driver implies disabling
+	  clock gating and delayed clock gating.
+
+config MMC_PM_DOMAIN
+	bool "Enable PM Domain for SD/MMC devices"
+	depends on PM_RUNTIME
+	depends on MMC_RTPM
+	default N
+	help
+	  If you say Y here, the MMC layer PM domain will be enabled
+	  for  SD/MMC device.
+
+config CMD_DUMP
+	bool "MMC Command Dump for debugging"
+	default n
+	help
+		use mmc command dump for debug

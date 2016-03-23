@@ -2,6 +2,7 @@
  * phy.c -- USB phy handling
  *
  * Copyright (C) 2004-2013 Texas Instruments
+ * Copyright (c) 2015, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -329,6 +330,9 @@ int usb_add_phy(struct usb_phy *x, enum usb_phy_type type)
 		return -EINVAL;
 	}
 
+	ATOMIC_INIT_NOTIFIER_HEAD(&x->notifier);
+	spin_lock_init(&x->sync_lock);
+
 	spin_lock_irqsave(&phy_lock, flags);
 
 	list_for_each_entry(phy, &phy_list, head) {
@@ -366,6 +370,8 @@ int usb_add_phy_dev(struct usb_phy *x)
 		dev_err(x->dev, "no device provided for PHY\n");
 		return -EINVAL;
 	}
+
+	ATOMIC_INIT_NOTIFIER_HEAD(&x->notifier);
 
 	spin_lock_irqsave(&phy_lock, flags);
 	list_for_each_entry(phy_bind, &phy_bind_list, list)

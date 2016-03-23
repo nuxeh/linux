@@ -30,27 +30,26 @@
 #include <linux/memblock.h>
 #include <linux/sort.h>
 #include <linux/of_fdt.h>
+#include <linux/dma-contiguous.h>
 
-#include <asm/prom.h>
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/sizes.h>
 #include <asm/tlb.h>
+#include <asm/alternative.h>
+
+#include <asm/mach/arch.h>
 
 #include "mm.h"
 
-static unsigned long phys_initrd_start __initdata = 0;
-static unsigned long phys_initrd_size __initdata = 0;
-
+/* FIXME */
+#if !defined(CONFIG_MACH_EXUMA) && !defined(CONFIG_MACH_GRENADA)
 phys_addr_t memstart_addr __read_mostly = 0;
+#else
+phys_addr_t memstart_addr __read_mostly = 0x80000000;
+#endif
 
-void __init early_init_dt_setup_initrd_arch(unsigned long start,
-					    unsigned long end)
-{
-	phys_initrd_start = start;
-	phys_initrd_size = end - start;
-}
-
+#ifdef CONFIG_BLK_DEV_INITRD
 static int __init early_initrd(char *p)
 {
 	unsigned long start, size;
@@ -60,12 +59,13 @@ static int __init early_initrd(char *p)
 	if (*endp == ',') {
 		size = memparse(endp + 1, NULL);
 
-		phys_initrd_start = start;
-		phys_initrd_size = size;
+		initrd_start = (unsigned long)__va(start);
+		initrd_end = (unsigned long)__va(start + size);
 	}
 	return 0;
 }
 early_param("initrd", early_initrd);
+#endif
 
 #define MAX_DMA32_PFN ((4UL * 1024 * 1024 * 1024) >> PAGE_SHIFT)
 
@@ -109,9 +109,11 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 }
 
 #ifdef CONFIG_HAVE_ARCH_PFN_VALID
+#define PFN_MASK ((1UL << (64 - PAGE_SHIFT)) - 1)
+
 int pfn_valid(unsigned long pfn)
 {
-	return memblock_is_memory(pfn << PAGE_SHIFT);
+	return (pfn & PFN_MASK) == pfn && memblock_is_memory(pfn << PAGE_SHIFT);
 }
 EXPORT_SYMBOL(pfn_valid);
 #endif
@@ -121,7 +123,7 @@ static void arm64_memory_present(void)
 {
 }
 #else
-static void arm64_memory_present(void)
+static void __init arm64_memory_present(void)
 {
 	struct memblock_region *reg;
 
@@ -138,13 +140,8 @@ void __init arm64_memblock_init(void)
 	/* Register the kernel text, kernel data and initrd with memblock */
 	memblock_reserve(__pa(_text), _end - _text);
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (phys_initrd_size) {
-		memblock_reserve(phys_initrd_start, phys_initrd_size);
-
-		/* Now convert initrd to virtual addresses */
-		initrd_start = __phys_to_virt(phys_initrd_start);
-		initrd_end = initrd_start + phys_initrd_size;
-	}
+	if (initrd_start)
+		memblock_reserve(__virt_to_phys(initrd_start), initrd_end - initrd_start);
 #endif
 
 	/*
@@ -172,6 +169,16 @@ void __init arm64_memblock_init(void)
 			break;
 		memblock_reserve(base, size);
 	}
+
+#ifdef CONFIG_ARM64_MACH_FRAMEWORK
+	/* reserve any platform specific memblock areas */
+	if (machine_desc->reserve)
+		machine_desc->reserve();
+#endif
+	early_init_fdt_scan_reserved_mem();
+
+	/* reserve memory for DMA contigouos allocations */
+	dma_contiguous_reserve(arm_dma_limit);
 
 	memblock_allow_resize();
 	memblock_dump_all();
@@ -283,7 +290,9 @@ void __init mem_init(void)
 	unsigned long reserved_pages, free_pages;
 	struct memblock_region *reg;
 
+#ifdef CONFIG_SWIOTLB
 	arm64_swiotlb_init();
+#endif
 
 	max_mapnr   = pfn_to_page(max_pfn + PHYS_PFN_OFFSET) - mem_map;
 
@@ -388,6 +397,7 @@ void free_initmem(void)
 {
 	poison_init_mem(__init_begin, __init_end - __init_begin);
 	free_initmem_default(0);
+	free_alternatives_memory();
 }
 
 #ifdef CONFIG_BLK_DEV_INITRD

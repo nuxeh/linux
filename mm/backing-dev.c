@@ -298,7 +298,7 @@ void bdi_wakeup_thread_delayed(struct backing_dev_info *bdi)
 	timeout = msecs_to_jiffies(dirty_writeback_interval * 10);
 	spin_lock_bh(&bdi->wb_lock);
 	if (test_bit(BDI_registered, &bdi->state))
-		queue_delayed_work(bdi_wq, &bdi->wb.dwork, timeout);
+		mod_delayed_work(bdi_wq, &bdi->wb.dwork, timeout);
 	spin_unlock_bh(&bdi->wb_lock);
 }
 

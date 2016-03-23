@@ -19,13 +19,8 @@
 
 #include "mm.h"
 
-#ifdef CONFIG_ARM_LPAE
-#define __pgd_alloc()	kmalloc(PTRS_PER_PGD * sizeof(pgd_t), GFP_KERNEL)
-#define __pgd_free(pgd)	kfree(pgd)
-#else
 #define __pgd_alloc()	(pgd_t *)__get_free_pages(GFP_KERNEL, 2)
 #define __pgd_free(pgd)	free_pages((unsigned long)pgd, 2)
-#endif
 
 /*
  * need to get a 16k page for level 1
@@ -50,7 +45,9 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	memcpy(new_pgd + USER_PTRS_PER_PGD, init_pgd + USER_PTRS_PER_PGD,
 		       (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
 
+#if !defined(CONFIG_CPU_CACHE_V7) || !defined(CONFIG_SMP)
 	clean_dcache_area(new_pgd, PTRS_PER_PGD * sizeof(pgd_t));
+#endif
 
 #ifdef CONFIG_ARM_LPAE
 	/*

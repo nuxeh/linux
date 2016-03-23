@@ -2,6 +2,8 @@
 # Makefile for the industrial I/O core.
 #
 
+GCOV_PROFILE := y
+
 obj-$(CONFIG_IIO) += industrialio.o
 industrialio-y := industrialio-core.o industrialio-event.o inkern.o
 industrialio-$(CONFIG_IIO_BUFFER) += industrialio-buffer.o
@@ -21,3 +23,6 @@ obj-y += frequency/
 obj-y += imu/
 obj-y += light/
 obj-y += magnetometer/
+obj-y += pressure/
+obj-y += proximity/
+

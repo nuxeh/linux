@@ -277,7 +277,7 @@ config SERIAL_TEGRA
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on the NVIDIA Tegra series SOCs
-	  providing /dev/ttyHS0, 1, 2, 3 and 4 (note, some machines may not
+	  providing /dev/ttyTHS0, 1, 2, 3 and 4 (note, some machines may not
 	  provide all of these ports, depending on how the serial port
 	  are enabled). This driver uses the APB DMA to achieve higher baudrate
 	  and better performance.
@@ -1483,6 +1483,15 @@ config SERIAL_RP2_NR_UARTS
 	help
 	  If multiple cards are present, the default limit of 32 ports may
 	  need to be increased.
+
+config TEGRA_HV_COMM
+	tristate "Tegra Hypervisor Communication"
+	depends on TEGRA_HV_MANAGER
+	help
+	  Add support for emulating a TTY device over the Tegra Hypervisor interface.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tegra_hv_comm.
 
 endmenu
 

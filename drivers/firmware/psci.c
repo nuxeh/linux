@@ -174,6 +174,7 @@ static int psci_cpu_on(unsigned long cpuid, unsigned long entry_point)
 	u32 fn;
 
 	fn = psci_function_id[PSCI_FN_CPU_ON];
+	printk("cpu_on CPUID %lu ENTRY_POINT %lu", cpuid, entry_point);
 	err = invoke_psci_fn(fn, cpuid, entry_point, 0);
 	return psci_to_linux_errno(err);
 }

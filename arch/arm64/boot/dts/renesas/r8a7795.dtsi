@@ -76,8 +76,6 @@
 			device_type = "cpu";
 			enable-method = "psci";
 			clocks = <&cpg CPG_CORE R8A7795_CLK_Z2>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
-			operating-points-v2 = <&group1_opp_tb>;
 		};
 
 		a53_1: cpu@101 {
@@ -85,8 +83,6 @@
 			reg = <0x101>;
 			device_type = "cpu";
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
-			operating-points-v2 = <&group1_opp_tb>;
 		};
 
 		a53_2: cpu@102 {
@@ -94,8 +90,6 @@
 			reg = <0x102>;
 			device_type = "cpu";
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
-			operating-points-v2 = <&group1_opp_tb>;
 		};
 
 		a53_3: cpu@103 {
@@ -103,8 +97,6 @@
 			reg = <0x103>;
 			device_type = "cpu";
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
-			operating-points-v2 = <&group1_opp_tb>;
 		};
 	};
 
@@ -343,7 +335,6 @@
 					(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
 				     <GIC_PPI 10
 					(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>;
-			clock-frequency = <8333333>;
 		};
 
 		cpg: clock-controller@e6150000 {

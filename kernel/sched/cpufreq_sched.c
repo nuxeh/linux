@@ -21,10 +21,6 @@
 struct static_key __read_mostly __sched_freq = STATIC_KEY_INIT_FALSE;
 static bool __read_mostly cpufreq_driver_slow;
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHED
-static struct cpufreq_governor cpufreq_gov_sched;
-#endif
-
 static DEFINE_PER_CPU(unsigned long, enabled);
 DEFINE_PER_CPU(struct sched_capacity_reqs, cpu_sched_capacity_reqs);
 
@@ -336,10 +332,7 @@ static int cpufreq_sched_setup(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHED
-static
-#endif
-struct cpufreq_governor cpufreq_gov_sched = {
+static struct cpufreq_governor cpufreq_gov_sched = {
 	.name			= "sched",
 	.governor		= cpufreq_sched_setup,
 	.owner			= THIS_MODULE,
@@ -354,5 +347,12 @@ static int __init cpufreq_sched_init(void)
 	return cpufreq_register_governor(&cpufreq_gov_sched);
 }
 
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHED
 /* Try to make this the default governor */
+struct cpufreq_governor *cpufreq_default_governor(void)
+{
+	return *cpufreq_gov_sched;
+}
 fs_initcall(cpufreq_sched_init);
+/* TODO: Adapt as a module? */
+#endif

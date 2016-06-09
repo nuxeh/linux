@@ -150,6 +150,7 @@
 			enable-method = "psci";
 			clock-frequency = <1200000000>;
 			clocks = <&cpg CPG_CORE R8A7795_CLK_Z2>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
 
@@ -159,6 +160,7 @@
 			device_type = "cpu";
 			enable-method = "psci";
 			clock-frequency = <1200000000>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
 
@@ -168,6 +170,7 @@
 			device_type = "cpu";
 			enable-method = "psci";
 			clock-frequency = <1200000000>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
 
@@ -177,6 +180,7 @@
 			device_type = "cpu";
 			enable-method = "psci";
 			clock-frequency = <1200000000>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
 		};
 

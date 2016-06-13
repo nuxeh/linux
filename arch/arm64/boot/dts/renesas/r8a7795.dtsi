@@ -559,6 +559,36 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		opp@4500000000 {
+			opp-hz = /bits/ 64 <450000000>;
+			opp-microvolt = <820000>;
+			clock-latency-ns = <300000>;
+		};
+
+		opp@500000000 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <820000>;
+			clock-latency-ns = <300000>;
+		};
+
+		opp@700000000 {
+			opp-hz = /bits/ 64 <700000000>;
+			opp-microvolt = <820000>;
+			clock-latency-ns = <300000>;
+		};
+
+		opp@850000000 {
+			opp-hz = /bits/ 64 <850000000>;
+			opp-microvolt = <820000>;
+			clock-latency-ns = <300000>;
+		};
+
+		opp@1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <820000>;
+			clock-latency-ns = <300000>;
+		};
+
 		opp@1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
 			opp-microvolt = <820000>;

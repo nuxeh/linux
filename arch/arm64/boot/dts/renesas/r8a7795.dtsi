@@ -104,6 +104,7 @@
 				<&group0_opp_tb3>, <&group0_opp_tb4>,
 				<&group0_opp_tb5>, <&group0_opp_tb6>;
 			cpu-supply = <&vdd_dvfs>;
+			sched-energy-costs = <&ec_a57 &ec_a57_cluster>;
 		};
 
 		a57_1: cpu@1 {
@@ -117,6 +118,7 @@
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
 				<&group0_opp_tb3>, <&group0_opp_tb4>,
 				<&group0_opp_tb5>, <&group0_opp_tb6>;
+			sched-energy-costs = <&ec_a57 &ec_a57_cluster>;
 		};
 		a57_2: cpu@2 {
 			compatible = "arm,cortex-a57","arm,armv8";
@@ -129,6 +131,7 @@
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
 				<&group0_opp_tb3>, <&group0_opp_tb4>,
 				<&group0_opp_tb5>, <&group0_opp_tb6>;
+			sched-energy-costs = <&ec_a57 &ec_a57_cluster>;
 		};
 		a57_3: cpu@3 {
 			compatible = "arm,cortex-a57","arm,armv8";
@@ -141,6 +144,7 @@
 				<&group0_opp_tb1>, <&group0_opp_tb2>,
 				<&group0_opp_tb3>, <&group0_opp_tb4>,
 				<&group0_opp_tb5>, <&group0_opp_tb6>;
+			sched-energy-costs = <&ec_a57 &ec_a57_cluster>;
 		};
 
 		a53_0: cpu@100 {
@@ -152,6 +156,7 @@
 			clocks = <&cpg CPG_CORE R8A7795_CLK_Z2>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
+			sched-energy-costs = <&ec_a53 &ec_a53_cluster>;
 		};
 
 		a53_1: cpu@101 {
@@ -162,6 +167,7 @@
 			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
+			sched-energy-costs = <&ec_a53 &ec_a53_cluster>;
 		};
 
 		a53_2: cpu@102 {
@@ -172,6 +178,7 @@
 			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
+			sched-energy-costs = <&ec_a53 &ec_a53_cluster>;
 		};
 
 		a53_3: cpu@103 {
@@ -182,6 +189,7 @@
 			clock-frequency = <1200000000>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 			operating-points-v2 = <&group1_opp_tb>;
+			sched-energy-costs = <&ec_a53 &ec_a53_cluster>;
 		};
 
 		idle-states {
@@ -194,6 +202,43 @@
 				entry-latency-us = <639>;
 				exit-latency-us = <680>;
 				min-residency-us = <1088>;
+			};
+		};
+
+		energy-costs {
+			ec_a57: core-cost0 {
+				idle-cost-data = <150 0>;
+				busy-cost-data = <276	441
+						  529	819
+						  808	1197
+						  862	1386
+						  916	1638
+						  970	1733
+						  1024	2048>;
+			};
+			ec_a57_cluster: cluster-cost0 {
+				idle-cost-data = <100 0>;
+				busy-cost-data = <276	110
+						  529	158
+						  808	221
+						  862	246
+						  916	284
+						  970	302
+						  1024	347>;
+			};
+			ec_a53: core_cost1 {
+				idle-cost-data = <50 0>;
+				busy-cost-data = <188	82
+						  325	165
+						  463	219
+						  549	274>;
+			};
+			ec_a53_cluster: cluster-cost1 {
+				idle-cost-data = <4 0>;
+				busy-cost-data = <188	10
+						  325	15
+						  463	27
+						  549	49>;
 			};
 		};
 	};
@@ -559,26 +604,20 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
-		opp@4500000000 {
-			opp-hz = /bits/ 64 <450000000>;
+		opp@2000000000 {
+			opp-hz = /bits/ 64 <200000000>;
 			opp-microvolt = <820000>;
 			clock-latency-ns = <300000>;
 		};
 
-		opp@500000000 {
-			opp-hz = /bits/ 64 <500000000>;
+		opp@400000000 {
+			opp-hz = /bits/ 64 <400000000>;
 			opp-microvolt = <820000>;
 			clock-latency-ns = <300000>;
 		};
 
 		opp@700000000 {
 			opp-hz = /bits/ 64 <700000000>;
-			opp-microvolt = <820000>;
-			clock-latency-ns = <300000>;
-		};
-
-		opp@850000000 {
-			opp-hz = /bits/ 64 <850000000>;
 			opp-microvolt = <820000>;
 			clock-latency-ns = <300000>;
 		};
